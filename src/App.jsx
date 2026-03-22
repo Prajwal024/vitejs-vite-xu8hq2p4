@@ -330,18 +330,18 @@ function MealEditor({ plan, onSave, onClose }) {
                 <button className="btn btn-d btn-sm" onClick={() => removeMeal(mi)}>Remove</button>
               </div>
               <div style={{ padding: "10px 14px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 60px 60px 60px 60px 70px auto", gap: 5, marginBottom: 6 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 70px 70px 70px 70px 80px auto", gap: 5, marginBottom: 6 }}>
                   {["Food", "Amount", "P(g)", "C(g)", "F(g)", "Fib(g)", "Cal", ""].map((h, i) => <div key={i} className="fl">{h}</div>)}
                 </div>
                 {meal.items.map((item, ii) => (
-                  <div key={ii} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 60px 60px 60px 60px 70px auto", gap: 5, marginBottom: 8, alignItems: "center" }}>
+                  <div key={ii} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 70px 70px 70px 70px 80px auto", gap: 5, marginBottom: 8, alignItems: "center" }}>
                     <input className="fi" value={item.food} onChange={e => updateItem(mi, ii, "food", e.target.value)} placeholder="Food name" />
                     <input className="fi" value={item.amount} onChange={e => updateItem(mi, ii, "amount", e.target.value)} placeholder="100g" />
-                    <input className="fi fi-lg" type="number" value={item.protein} onChange={e => updateItem(mi, ii, "protein", e.target.value)} style={{ color: "var(--purple)" }} />
-                    <input className="fi fi-lg" type="number" value={item.carbs} onChange={e => updateItem(mi, ii, "carbs", e.target.value)} style={{ color: "var(--orange)" }} />
-                    <input className="fi fi-lg" type="number" value={item.fats} onChange={e => updateItem(mi, ii, "fats", e.target.value)} style={{ color: "var(--red)" }} />
-                    <input className="fi fi-lg" type="number" value={item.fiber || 0} onChange={e => updateItem(mi, ii, "fiber", e.target.value)} style={{ color: "#34d399" }} />
-                    <input className="fi fi-lg" type="number" value={item.cal} onChange={e => updateItem(mi, ii, "cal", e.target.value)} style={{ color: "var(--green)" }} />
+                    <input className="fi" type="number" value={item.protein || ""} onChange={e => updateItem(mi, ii, "protein", e.target.value)} placeholder="0" style={{ color: "var(--purple)", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
+                    <input className="fi" type="number" value={item.carbs || ""} onChange={e => updateItem(mi, ii, "carbs", e.target.value)} placeholder="0" style={{ color: "var(--orange)", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
+                    <input className="fi" type="number" value={item.fats || ""} onChange={e => updateItem(mi, ii, "fats", e.target.value)} placeholder="0" style={{ color: "var(--red)", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
+                    <input className="fi" type="number" value={item.fiber || ""} onChange={e => updateItem(mi, ii, "fiber", e.target.value)} placeholder="0" style={{ color: "#34d399", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
+                    <input className="fi" type="number" value={item.cal || ""} onChange={e => updateItem(mi, ii, "cal", e.target.value)} placeholder="0" style={{ color: "var(--green)", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
                     <button className="btn btn-d btn-xs" onClick={() => removeItem(mi, ii)}>✕</button>
                   </div>
                 ))}
@@ -1373,6 +1373,9 @@ function LoginScreen({ onLogin, onSetup, coachExists }) {
         </div>
         {err && <div className="alert alert-e">{err}</div>}
         <button className="auth-btn" onClick={login} disabled={ld}>{ld ? "Signing in..." : "Sign In →"}</button>
+        <div style={{ textAlign: "center", marginTop: 14 }}>
+          <button className="forgot-btn" style={{ fontSize: 13, color: "var(--muted2)" }} onClick={() => setShowForgot(true)}>🔑 Forgot your password?</button>
+        </div>
         {!coachExists && <div className="auth-switch">First time? <button onClick={onSetup}>Create coach account</button></div>}
         {coachExists && <div style={{ textAlign: "center", marginTop: 14, fontSize: 11, color: "var(--muted)", padding: 10, background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)" }}>🔒 Contact your coach for login credentials.</div>}
       </div>
