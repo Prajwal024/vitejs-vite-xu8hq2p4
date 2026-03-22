@@ -256,17 +256,40 @@ function WorkoutEditor({ plan, onSave, onClose }) {
               </div>
               {day.type !== "Rest" && (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "2fr 55px 80px 65px 1fr auto", gap: 6, marginBottom: 4 }}>
-                    {["Exercise", "Sets", "Reps", "Rest", "Video URL (YouTube/mp4)", ""].map((h, i) => <div key={i} className="fl">{h}</div>)}
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 55px 80px 65px auto", gap: 6, marginBottom: 4 }}>
+                    {["Exercise", "Sets", "Reps", "Rest", "Demo Video"].map((h, i) => <div key={i} className="fl">{h}</div>)}
                   </div>
                   {day.exercises.map((ex, ei) => (
-                    <div key={ei} style={{ display: "grid", gridTemplateColumns: "2fr 55px 80px 65px 1fr auto", gap: 6, marginBottom: 8, alignItems: "center" }}>
-                      <input className="fi" value={ex.name} onChange={e => updateEx(di, ei, "name", e.target.value)} placeholder="Exercise name" />
-                      <input className="fi" type="number" value={ex.sets} onChange={e => updateEx(di, ei, "sets", parseInt(e.target.value) || 1)} />
-                      <input className="fi" value={ex.reps} onChange={e => updateEx(di, ei, "reps", e.target.value)} placeholder="10-12" />
-                      <input className="fi" value={ex.rest} onChange={e => updateEx(di, ei, "rest", e.target.value)} placeholder="60s" />
-                      <input className="fi" value={ex.videoUrl || ""} onChange={e => updateEx(di, ei, "videoUrl", e.target.value)} placeholder="https://youtube.com/... or video URL" />
-                      <button className="btn btn-d btn-xs" onClick={() => removeEx(di, ei)}>✕</button>
+                    <div key={ei} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 9, padding: 10, marginBottom: 10 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "2fr 55px 80px 65px auto", gap: 6, marginBottom: 8, alignItems: "center" }}>
+                        <input className="fi" value={ex.name} onChange={e => updateEx(di, ei, "name", e.target.value)} placeholder="Exercise name" />
+                        <input className="fi" type="number" value={ex.sets} onChange={e => updateEx(di, ei, "sets", parseInt(e.target.value) || 1)} />
+                        <input className="fi" value={ex.reps} onChange={e => updateEx(di, ei, "reps", e.target.value)} placeholder="10-12" />
+                        <input className="fi" value={ex.rest} onChange={e => updateEx(di, ei, "rest", e.target.value)} placeholder="60s" />
+                        <button className="btn btn-d btn-xs" onClick={() => removeEx(di, ei)}>✕ Remove</button>
+                      </div>
+                      {/* VIDEO — both URL paste AND file upload from PC */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
+                        <input className="fi" value={ex.videoUrl || ""} onChange={e => updateEx(di, ei, "videoUrl", e.target.value)}
+                          placeholder="Paste YouTube link or video URL (e.g. https://youtube.com/watch?v=...)" />
+                        <label style={{ cursor: "pointer", whiteSpace: "nowrap" }}>
+                          <input type="file" accept="video/*" style={{ display: "none" }}
+                            onChange={e => {
+                              const file = e.target.files[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = ev => updateEx(di, ei, "videoUrl", ev.target.result);
+                              reader.readAsDataURL(file);
+                            }} />
+                          <span className="btn btn-s btn-sm">📁 Upload from PC</span>
+                        </label>
+                      </div>
+                      {ex.videoUrl && (
+                        <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
+                          <span className="bdg bdg-b">🎥 Video added</span>
+                          <button className="btn btn-d btn-xs" onClick={() => updateEx(di, ei, "videoUrl", "")}>Remove video</button>
+                        </div>
+                      )}
                     </div>
                   ))}
                   <button className="btn btn-s btn-sm" onClick={() => addEx(di)} style={{ marginTop: 4 }}>+ Add Exercise</button>
@@ -536,20 +559,47 @@ function ClientDash({ uid, tab, setTab, toast }) {
     <div className="page">
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>📸 Progress Photos & Videos</div>
-        <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>Your coach can see everything you upload</div>
+        <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>Your coach can see everything you upload · You can upload anytime</div>
       </div>
+
+      {/* UPLOAD AREA — always visible so client can add more anytime */}
       <div className="card" style={{ marginBottom: 16 }}>
-        <label className="upload-area">
+        <label className="upload-area" style={{ cursor: "pointer" }}>
           <input type="file" accept="image/*,video/*" multiple style={{ display: "none" }}
-            onChange={e => { Array.from(e.target.files).forEach(uploadMedia); }} />
-          <div style={{ fontSize: 32, marginBottom: 8 }}>📤</div>
-          <div style={{ fontWeight: 700, fontSize: 15, color: "var(--green)", marginBottom: 4 }}>Upload Photos or Videos</div>
-          <div style={{ color: "var(--muted)", fontSize: 12 }}>Select multiple files at once · JPG, PNG, MP4, MOV</div>
+            onChange={e => {
+              const files = Array.from(e.target.files);
+              if (files.length === 0) return;
+              files.forEach(uploadMedia);
+              e.target.value = ""; // reset so same files can be selected again
+            }} />
+          <div style={{ fontSize: 36, marginBottom: 10 }}>📤</div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: "var(--green)", marginBottom: 6 }}>
+            {media.length > 0 ? "Upload More Photos / Videos" : "Upload Photos or Videos"}
+          </div>
+          <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 6 }}>
+            Click here to select <strong style={{ color: "var(--text)" }}>multiple files</strong> at once
+          </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+            <span className="bdg bdg-g">📷 JPG / PNG photos</span>
+            <span className="bdg bdg-b">🎥 MP4 / MOV videos</span>
+            <span className="bdg bdg-p">🔄 Upload anytime</span>
+          </div>
         </label>
       </div>
+
       {media.length > 0 ? (
         <div className="card">
-          <div className="card-title">Your Media ({media.length} files)</div>
+          <div className="card-title">
+            Your Media ({media.length} files)
+            <label style={{ cursor: "pointer" }}>
+              <input type="file" accept="image/*,video/*" multiple style={{ display: "none" }}
+                onChange={e => {
+                  Array.from(e.target.files).forEach(uploadMedia);
+                  e.target.value = "";
+                }} />
+              <span className="btn btn-p btn-sm">+ Add More</span>
+            </label>
+          </div>
           <div className="photo-grid">
             {[...media].reverse().map((p, i) => (
               <div key={i} className="photo-item" onClick={() => setViewMedia(p)}>
@@ -562,7 +612,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
           </div>
         </div>
       ) : (
-        <div className="card"><div className="empty"><div className="empty-icon">📸</div><div className="empty-title">No media yet</div><div className="empty-desc">Upload your first progress photo!</div></div></div>
+        <div className="card"><div className="empty"><div className="empty-icon">📸</div><div className="empty-title">No media yet</div><div className="empty-desc">Click the upload area above to add your first progress photo!</div></div></div>
       )}
       {viewMedia && (
         <div className="ov" onClick={() => setViewMedia(null)}>
