@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { auth, db } from "./firebase";
+import { auth, db, storage } from "./firebase";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import {
   signInWithEmailAndPassword, createUserWithEmailAndPassword,
   signOut, onAuthStateChanged, sendPasswordResetEmail,
@@ -268,26 +269,24 @@ function WorkoutEditor({ plan, onSave, onClose }) {
                         <input className="fi" value={ex.rest} onChange={e => updateEx(di, ei, "rest", e.target.value)} placeholder="60s" />
                         <button className="btn btn-d btn-xs" onClick={() => removeEx(di, ei)}>✕ Remove</button>
                       </div>
-                      {/* VIDEO — both URL paste AND file upload from PC */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" }}>
-                        <input className="fi" value={ex.videoUrl || ""} onChange={e => updateEx(di, ei, "videoUrl", e.target.value)}
-                          placeholder="Paste YouTube link or video URL (e.g. https://youtube.com/watch?v=...)" />
-                        <label style={{ cursor: "pointer", whiteSpace: "nowrap" }}>
-                          <input type="file" accept="video/*" style={{ display: "none" }}
-                            onChange={e => {
-                              const file = e.target.files[0];
-                              if (!file) return;
-                              const reader = new FileReader();
-                              reader.onload = ev => updateEx(di, ei, "videoUrl", ev.target.result);
-                              reader.readAsDataURL(file);
-                            }} />
-                          <span className="btn btn-s btn-sm">📁 Upload from PC</span>
-                        </label>
+                      {/* VIDEO — paste YouTube URL only */}
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <div style={{ flex: 1 }}>
+                          <div className="fl" style={{ marginBottom: 4 }}>🎥 Exercise Demo Video (paste YouTube link)</div>
+                          <input className="fi" value={ex.videoUrl || ""}
+                            onChange={e => updateEx(di, ei, "videoUrl", e.target.value)}
+                            placeholder="https://youtube.com/watch?v=... or https://youtu.be/..." />
+                        </div>
                       </div>
                       {ex.videoUrl && (
                         <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
-                          <span className="bdg bdg-b">🎥 Video added</span>
-                          <button className="btn btn-d btn-xs" onClick={() => updateEx(di, ei, "videoUrl", "")}>Remove video</button>
+                          <span className="bdg bdg-b">🎥 Video link added — client will see Watch Demo button</span>
+                          <button className="btn btn-d btn-xs" onClick={() => updateEx(di, ei, "videoUrl", "")}>Remove</button>
+                        </div>
+                      )}
+                      {!ex.videoUrl && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: "var(--muted)" }}>
+                          💡 Tip: Search exercise on YouTube → copy URL → paste above
                         </div>
                       )}
                     </div>
@@ -443,16 +442,59 @@ function ClientDash({ uid, tab, setTab, toast }) {
   const uploadMedia = async (file) => {
     if (!file) return;
     const isVideo = file.type.startsWith("video/");
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64 = e.target.result;
-      const media = d.photos || [];
-      await updateDoc(doc(db, "clients", uid), {
-        photos: [...media, { data: base64, type: isVideo ? "video" : "photo", date: new Date().toLocaleDateString("en-IN"), time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }), timestamp: new Date().toISOString() }]
-      });
-      toast(isVideo ? "🎥 Video uploaded!" : "📸 Photo uploaded!", "success");
-    };
-    reader.readAsDataURL(file);
+    const maxSizeMB = isVideo ? 100 : 20;
+    const fileSizeMB = file.size / (1024 * 1024);
+
+    if (fileSizeMB > maxSizeMB) {
+      toast(`File too large (${fileSizeMB.toFixed(1)}MB). Max ${maxSizeMB}MB.`, "error");
+      return;
+    }
+
+    if (!isVideo && (d.photos || []).length >= 50) {
+      toast("Max 50 photos reached.", "error");
+      return;
+    }
+
+    try {
+      toast("⏳ Uploading " + (isVideo ? "video" : "photo") + "...", "success");
+
+      // Upload to Firebase Storage — full quality, no compression!
+      const timestamp = Date.now();
+      const fileName = `${uid}/${isVideo ? "videos" : "photos"}/${timestamp}_${file.name.replace(/[^a-zA-Z0-9.]/g, "_")}`;
+      const storageRef = ref(storage, fileName);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      uploadTask.on("state_changed",
+        (snapshot) => {
+          const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          if (pct % 25 === 0) toast(`⏳ Uploading... ${pct}%`, "success");
+        },
+        (error) => {
+          toast("Upload failed: " + error.message, "error");
+        },
+        async () => {
+          // Get the download URL after upload
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          const currentPhotos = d.photos || [];
+          const newEntry = {
+            url: downloadURL,
+            storagePath: fileName,
+            type: isVideo ? "video" : "photo",
+            name: file.name,
+            date: new Date().toLocaleDateString("en-IN"),
+            time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
+            timestamp: new Date().toISOString(),
+            sizeMB: fileSizeMB.toFixed(2),
+          };
+          await updateDoc(doc(db, "clients", uid), {
+            photos: [...currentPhotos, newEntry]
+          });
+          toast((isVideo ? "🎥 Video" : "📸 Photo") + " uploaded! Full quality ✅", "success");
+        }
+      );
+    } catch (err) {
+      toast("Upload failed: " + err.message, "error");
+    }
   };
 
   if (loading) return <div className="spin-wrap"><div className="spinner" /><span>Loading your plan...</span></div>;
@@ -511,122 +553,260 @@ function ClientDash({ uid, tab, setTab, toast }) {
     </div>
   );
 
-  if (tab === "nutrition") return (
-    <div className="page">
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>🥩 Your Nutrition Plan</div>
-        <div className="live" style={{ marginTop: 7 }}><span className="dot" />Updates live from coach</div>
-      </div>
-      <div className="g4" style={{ marginBottom: 20 }}>
-        <MC label="Calories" value={n.calories} color="var(--green)" flash={!!flash.calories} />
-        <MC label="Protein G" value={n.protein} color="var(--purple)" flash={!!flash.protein} />
-        <MC label="Carbs G" value={n.carbs} color="var(--orange)" flash={!!flash.carbs} />
-        <MC label="Fats G" value={n.fats} color="var(--red)" flash={!!flash.fats} />
-      </div>
-      {n.fiber != null && (
-        <div className="card" style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 24, fontWeight: 800, color: "#34d399" }}>{n.fiber}g</div>
-          <div className="mc-label">Daily Fiber Target</div>
+  if (tab === "nutrition") {
+    // Calculate totals across ALL meals
+    const allItems = meals.flatMap(m => m.items);
+    const totP = allItems.reduce((a,i) => a + (i.protein||0), 0);
+    const totC = allItems.reduce((a,i) => a + (i.carbs||0), 0);
+    const totF = allItems.reduce((a,i) => a + (i.fats||0), 0);
+    const totFib = allItems.reduce((a,i) => a + (i.fiber||0), 0);
+    const totCal = allItems.reduce((a,i) => a + (i.cal||0), 0);
+    // Calories from each macro
+    const calFromP = totP * 4;
+    const calFromC = totC * 4;
+    const calFromF = totF * 9;
+    return (
+      <div className="page">
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>🥩 Your Nutrition Plan</div>
+          <div className="live" style={{ marginTop: 7 }}><span className="dot" />Updates live from coach</div>
         </div>
-      )}
-      {meals.map((meal, mi) => (
-        <div key={mi} className="meal-card">
-          <div className="meal-head">
-            <div><span style={{ fontWeight: 700, fontSize: 14 }}>{meal.name}</span><span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>{meal.time}</span></div>
-            <span className="bdg bdg-g">{meal.items.reduce((a, i) => a + (i.cal || 0), 0)} kcal</span>
+
+        {/* ── DAILY TARGETS (set by coach) ── */}
+        <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, marginBottom: 10, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".07em" }}>🎯 Daily Targets (set by coach)</div>
+        <div className="g4" style={{ marginBottom: 20 }}>
+          <MC label="Calories" value={n.calories} color="var(--green)" flash={!!flash.calories} />
+          <MC label="Protein G" value={n.protein} color="var(--purple)" flash={!!flash.protein} />
+          <MC label="Carbs G" value={n.carbs} color="var(--orange)" flash={!!flash.carbs} />
+          <MC label="Fats G" value={n.fats} color="var(--red)" flash={!!flash.fats} />
+        </div>
+        {n.fiber > 0 && (
+          <div className="card" style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 24, fontWeight: 800, color: "#34d399" }}>{n.fiber}g</div>
+            <div className="mc-label">Daily Fiber Target</div>
           </div>
-          <div className="meal-body">
-            {meal.items.map((item, ii) => (
-              <div key={ii} className="food-row">
-                <div><span style={{ fontWeight: 600 }}>{item.food}</span><span style={{ color: "var(--muted)", fontSize: 12, marginLeft: 6 }}>{item.amount}</span></div>
-                <div style={{ display: "flex", gap: 8, fontSize: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  <span style={{ color: "var(--purple)" }}>{item.protein}g P</span>
-                  <span style={{ color: "var(--orange)" }}>{item.carbs}g C</span>
-                  <span style={{ color: "var(--red)" }}>{item.fats}g F</span>
-                  <span style={{ color: "#34d399" }}>{item.fiber || 0}g Fib</span>
-                  <span style={{ color: "var(--green)", fontWeight: 700 }}>{item.cal} cal</span>
+        )}
+
+        {/* ── MEAL PLAN ── */}
+        <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, marginBottom: 10, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".07em" }}>🍽️ Meal Plan</div>
+        {meals.map((meal, mi) => {
+          const mp = meal.items.reduce((a,i)=>a+(i.protein||0),0);
+          const mc = meal.items.reduce((a,i)=>a+(i.carbs||0),0);
+          const mf = meal.items.reduce((a,i)=>a+(i.fats||0),0);
+          const mfib = meal.items.reduce((a,i)=>a+(i.fiber||0),0);
+          const mcal = meal.items.reduce((a,i)=>a+(i.cal||0),0);
+          return (
+            <div key={mi} className="meal-card">
+              <div className="meal-head">
+                <div><span style={{ fontWeight: 700, fontSize: 14 }}>{meal.name}</span><span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>{meal.time}</span></div>
+                <span className="bdg bdg-g">{mcal} kcal</span>
+              </div>
+              <div className="meal-body">
+                {meal.items.map((item, ii) => (
+                  <div key={ii} className="food-row">
+                    <div><span style={{ fontWeight: 600 }}>{item.food}</span><span style={{ color: "var(--muted)", fontSize: 12, marginLeft: 6 }}>{item.amount}</span></div>
+                    <div style={{ display: "flex", gap: 8, fontSize: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <span style={{ color: "var(--purple)" }}>{item.protein}g P</span>
+                      <span style={{ color: "var(--orange)" }}>{item.carbs}g C</span>
+                      <span style={{ color: "var(--red)" }}>{item.fats}g F</span>
+                      <span style={{ color: "#34d399" }}>{item.fiber||0}g Fib</span>
+                      <span style={{ color: "var(--green)", fontWeight: 700 }}>{item.cal} cal</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Per meal macro summary */}
+              <div className="meal-total">
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted2)", textTransform: "uppercase" }}>Meal Total:</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>{mcal} kcal</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--purple)" }}>{mp}g P</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--orange)" }}>{mc}g C</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--red)" }}>{mf}g F</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#34d399" }}>{mfib}g Fib</span>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* ── MACRO ANALYTICS (all meals totalled) ── */}
+        <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, marginBottom: 12, marginTop: 8, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".07em" }}>📊 All Meals — Totals</div>
+        <div className="card" style={{ marginBottom: 14 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+            {[
+              ["Total Protein", totP + "g", "var(--purple)"],
+              ["Total Carbs", totC + "g", "var(--orange)"],
+              ["Total Fats", totF + "g", "var(--red)"],
+              ["Total Fiber", totFib + "g", "#34d399"],
+              ["Total Calories", totCal + " kcal", "var(--green)"],
+            ].map(([l,v,co]) => (
+              <div key={l} style={{ background: "var(--s2)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--border)" }}>
+                <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 20, fontWeight: 800, color: co }}>{v}</div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", marginTop: 4 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13, marginBottom: 10, color: "var(--muted2)" }}>🔥 Calories from each macro</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              {[
+                ["From Protein", calFromP, "var(--purple)", totCal],
+                ["From Carbs", calFromC, "var(--orange)", totCal],
+                ["From Fats", calFromF, "var(--red)", totCal],
+              ].map(([l,v,co,tot]) => {
+                const pct = tot > 0 ? Math.round(v/tot*100) : 0;
+                return (
+                  <div key={l} style={{ background: "var(--s2)", borderRadius: 10, padding: "12px", border: "1px solid var(--border)", textAlign: "center" }}>
+                    <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 18, fontWeight: 800, color: co }}>{v} kcal</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginTop: 3 }}>{l}</div>
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ background: "var(--border)", borderRadius: 4, height: 5, overflow: "hidden" }}>
+                        <div style={{ width: pct + "%", height: "100%", background: co, borderRadius: 4 }} />
+                      </div>
+                      <div style={{ fontSize: 11, color: co, fontWeight: 700, marginTop: 3 }}>{pct}%</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (tab === "sources") {
+    const sources = d.foodSources || { protein: ["","","","",""], carbs: ["","","","",""], fats: ["","","","",""] };
+    const updateSource = async (type, idx, val) => {
+      const updated = { ...sources };
+      updated[type] = [...(updated[type] || ["","","","",""])];
+      updated[type][idx] = val;
+      await updateDoc(doc(db, "clients", uid), { foodSources: updated });
+    };
+    return (
+      <div className="page">
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>🥦 My Food Sources</div>
+          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>Tell your coach which foods you can easily access — top 5 for each</div>
+        </div>
+        <div className="alert alert-b" style={{ marginBottom: 18 }}>
+          💡 Fill in foods that are easily available to you. Your coach will use this to design your meal plan accordingly.
+        </div>
+        {[
+          ["protein", "🥩 Top 5 Protein Sources", "var(--purple)", "e.g. Eggs, Chicken, Paneer, Whey, Fish"],
+          ["carbs",   "🍚 Top 5 Carb Sources",    "var(--orange)", "e.g. Rice, Oats, Bread, Sweet Potato, Banana"],
+          ["fats",    "🥑 Top 5 Fat Sources",      "var(--red)",    "e.g. Ghee, Nuts, Peanut Butter, Oil, Butter"],
+        ].map(([type, label, color, hint]) => (
+          <div key={type} className="card" style={{ marginBottom: 16 }}>
+            <div className="card-title" style={{ color }}>{label}</div>
+            <div style={{ display: "grid", gap: 8 }}>
+              {[0,1,2,3,4].map(i => (
+                <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: color + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color, flexShrink: 0 }}>{i+1}</div>
+                  <input
+                    className="fi"
+                    placeholder={i === 0 ? hint : "Option " + (i+1)}
+                    defaultValue={(sources[type] || [])[i] || ""}
+                    onBlur={e => updateSource(type, i, e.target.value)}
+                  />
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-          <MealTotals items={meal.items} />
-        </div>
-      ))}
-    </div>
-  );
-
-  if (tab === "photos") return (
-    <div className="page">
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>📸 Progress Photos & Videos</div>
-        <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>Your coach can see everything you upload · You can upload anytime</div>
+        ))}
+        <div className="alert alert-g">✅ Your answers are saved automatically when you click outside each box. Coach can see your sources instantly.</div>
       </div>
+    );
+  }
 
-      {/* UPLOAD AREA — always visible so client can add more anytime */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <label className="upload-area" style={{ cursor: "pointer" }}>
-          <input type="file" accept="image/*,video/*" multiple style={{ display: "none" }}
-            onChange={e => {
-              const files = Array.from(e.target.files);
-              if (files.length === 0) return;
-              files.forEach(uploadMedia);
-              e.target.value = ""; // reset so same files can be selected again
-            }} />
-          <div style={{ fontSize: 36, marginBottom: 10 }}>📤</div>
-          <div style={{ fontWeight: 700, fontSize: 16, color: "var(--green)", marginBottom: 6 }}>
-            {media.length > 0 ? "Upload More Photos / Videos" : "Upload Photos or Videos"}
-          </div>
-          <div style={{ color: "var(--muted)", fontSize: 13, marginBottom: 6 }}>
-            Click here to select <strong style={{ color: "var(--text)" }}>multiple files</strong> at once
-          </div>
-          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-            <span className="bdg bdg-g">📷 JPG / PNG photos</span>
-            <span className="bdg bdg-b">🎥 MP4 / MOV videos</span>
-            <span className="bdg bdg-p">🔄 Upload anytime</span>
-          </div>
-        </label>
-      </div>
+  if (tab === "photos") {
+    const clientPhotos = d.photos || [];
+    const photoCount = clientPhotos.filter(p => p.type !== "video").length;
+    const videoCount = clientPhotos.filter(p => p.type === "video").length;
+    return (
+      <div className="page">
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>📸 Progress Photos & Videos</div>
+          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>Full quality · Stored in Firebase Storage · Coach sees everything instantly</div>
+        </div>
 
-      {media.length > 0 ? (
-        <div className="card">
-          <div className="card-title">
-            Your Media ({media.length} files)
-            <label style={{ cursor: "pointer" }}>
-              <input type="file" accept="image/*,video/*" multiple style={{ display: "none" }}
-                onChange={e => {
-                  Array.from(e.target.files).forEach(uploadMedia);
-                  e.target.value = "";
-                }} />
-              <span className="btn btn-p btn-sm">+ Add More</span>
-            </label>
+        {/* UPLOAD AREA — always visible */}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <label className="upload-area" style={{ cursor: "pointer" }}>
+            <input type="file" accept="image/*,video/*" multiple style={{ display: "none" }}
+              onChange={e => {
+                const files = Array.from(e.target.files);
+                if (files.length === 0) return;
+                files.forEach(f => uploadMedia(f));
+                e.target.value = "";
+              }} />
+            <div style={{ fontSize: 36, marginBottom: 10 }}>📤</div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: "var(--green)", marginBottom: 6 }}>
+              {clientPhotos.length > 0 ? "Upload More Photos / Videos" : "Upload Progress Photos / Videos"}
+            </div>
+            <div style={{ color: "var(--muted2)", fontSize: 13, marginBottom: 10 }}>
+              Select <strong style={{ color: "var(--text)" }}>multiple files</strong> at once · Full quality · No compression needed
+            </div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+              <span className="bdg bdg-g">📷 Photos up to 20MB</span>
+              <span className="bdg bdg-b">🎥 Videos up to 100MB</span>
+              <span className="bdg bdg-p">📊 {photoCount} photos · {videoCount} videos</span>
+            </div>
+          </label>
+        </div>
+
+        {clientPhotos.length > 0 ? (
+          <div className="card">
+            <div className="card-title">
+              Your Media ({clientPhotos.length})
+              <label style={{ cursor: "pointer" }}>
+                <input type="file" accept="image/*,video/*" multiple style={{ display: "none" }}
+                  onChange={e => {
+                    Array.from(e.target.files).forEach(f => uploadMedia(f));
+                    e.target.value = "";
+                  }} />
+                <span className="btn btn-p btn-sm">+ Add More</span>
+              </label>
+            </div>
+            <div className="photo-grid">
+              {[...clientPhotos].reverse().map((p, i) => (
+                <div key={i} className="photo-item" onClick={() => setViewMedia(p)}>
+                  {p.type === "video"
+                    ? <><video src={p.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><div className="video-badge">🎥 Video</div></>
+                    : <img src={p.url || p.data} alt="" />}
+                  <div className="photo-label">{p.date} · {p.time}</div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="photo-grid">
-            {[...media].reverse().map((p, i) => (
-              <div key={i} className="photo-item" onClick={() => setViewMedia(p)}>
-                {p.type === "video"
-                  ? <><video src={p.data} /><div className="video-badge">🎥 Video</div></>
-                  : <img src={p.data} alt="" />}
-                <div className="photo-label">{p.date} · {p.time}</div>
+        ) : (
+          <div className="card">
+            <div className="empty">
+              <div className="empty-icon">📸</div>
+              <div className="empty-title">No photos yet</div>
+              <div className="empty-desc">Click above to upload your first progress photo or video!</div>
+            </div>
+          </div>
+        )}
+
+        {viewMedia && (
+          <div className="ov" onClick={() => setViewMedia(null)}>
+            <div style={{ maxWidth: 560, width: "100%" }}>
+              {viewMedia.type === "video"
+                ? <video src={viewMedia.url} controls autoPlay style={{ width: "100%", borderRadius: 16 }} />
+                : <img src={viewMedia.url || viewMedia.data} alt="" style={{ width: "100%", borderRadius: 16 }} />}
+              <div style={{ textAlign: "center", marginTop: 10, color: "var(--muted2)", fontSize: 13 }}>
+                {viewMedia.date} · {viewMedia.time}
+                {viewMedia.sizeMB && <span style={{ marginLeft: 8 }}>· {viewMedia.sizeMB}MB</span>}
               </div>
-            ))}
+              <div style={{ textAlign: "center", marginTop: 8 }}>
+                <button className="btn btn-s btn-sm" onClick={() => setViewMedia(null)}>Close</button>
+              </div>
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="card"><div className="empty"><div className="empty-icon">📸</div><div className="empty-title">No media yet</div><div className="empty-desc">Click the upload area above to add your first progress photo!</div></div></div>
-      )}
-      {viewMedia && (
-        <div className="ov" onClick={() => setViewMedia(null)}>
-          <div style={{ maxWidth: 520, width: "100%" }}>
-            {viewMedia.type === "video"
-              ? <video src={viewMedia.data} controls style={{ width: "100%", borderRadius: 16 }} />
-              : <img src={viewMedia.data} alt="" style={{ width: "100%", borderRadius: 16 }} />}
-            <div style={{ textAlign: "center", marginTop: 10, color: "var(--muted2)", fontSize: 13 }}>{viewMedia.date} · {viewMedia.time}</div>
-            <div style={{ textAlign: "center", marginTop: 8 }}><button className="btn btn-s btn-sm" onClick={() => setViewMedia(null)}>Close</button></div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+        )}
+      </div>
+    );
+  }
 
   if (tab === "comparison") {
     const allCheckins = [...checkins];
@@ -682,7 +862,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
                       <div style={{ background: "var(--s3)", padding: "6px 10px", fontSize: 11, fontWeight: 700, color: "var(--green)" }}>
                         {i === 0 ? "📅 First" : i === media.filter(m => m.type !== "video").length - 1 ? "📅 Latest" : "📅 " + p.date}
                       </div>
-                      <img src={p.data} alt="" style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover" }} />
+                      <img src={p.url || p.data} alt="" style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover" }} />
                       <div style={{ padding: "6px 10px", fontSize: 10, color: "var(--muted)" }}>{p.date} · {p.time}</div>
                     </div>
                   ))}
@@ -942,7 +1122,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
         </div>
 
         <div className="tab-bar">
-          {[["overview","📊 Overview"],["checkins","📋 Check-ins"],["photos","📸 Media"],["comparison","🔄 Compare"],["message","📨 Message"],["nutrition","🥩 Macros"],["meals","🍽️ Meals"],["workout","💪 Workout"],["phase","📋 Phase"]].map(([k, l]) => (
+          {[["overview","📊 Overview"],["checkins","📋 Check-ins"],["photos","📸 Media"],["comparison","🔄 Compare"],["message","📨 Message"],["nutrition","🥩 Macros"],["meals","🍽️ Meals"],["analytics","📈 Analytics"],["sources","🥦 Sources"],["workout","💪 Workout"],["phase","📋 Phase"]].map(([k, l]) => (
             <button key={k} className={innerTab === k ? "tab-item active" : "tab-item"} onClick={() => setInnerTab(k)}>{l}</button>
           ))}
         </div>
@@ -1018,7 +1198,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
               : <div className="photo-grid">
                 {[...media].reverse().map((p, i) => (
                   <div key={i} className="photo-item" onClick={() => setViewMedia(p)}>
-                    {p.type === "video" ? <><video src={p.data} /><div className="video-badge">🎥</div></> : <img src={p.data} alt="" />}
+                    {p.type === "video" ? <><video src={p.url} style={{width:"100%",height:"100%",objectFit:"cover"}} /><div className="video-badge">🎥</div></> : <img src={p.url || p.data} alt="" />}
                     <div className="photo-label">{p.date} · {p.time}</div>
                   </div>
                 ))}
@@ -1063,7 +1243,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
                       <div style={{ background: "var(--s3)", padding: "5px 10px", fontSize: 11, fontWeight: 700, color: "var(--green)", textAlign: "center" }}>
                         {i === 0 ? "First" : i === media.filter(m => m.type !== "video").length - 1 ? "Latest" : p.date}
                       </div>
-                      <img src={p.data} alt="" style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", cursor: "pointer" }} onClick={() => setViewMedia(p)} />
+                      <img src={p.url || p.data} alt="" style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover", cursor: "pointer" }} onClick={() => setViewMedia(p)} />
                     </div>
                   ))}
                 </div>
@@ -1098,35 +1278,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
           </div>
         )}
 
-        {innerTab === "meals" && (
-          <div className="card">
-            <div className="card-title">🍽️ Meal Plan for {sel.name} <button className="btn btn-p btn-sm" onClick={() => setShowMealEditor(true)}>✏️ Edit</button></div>
-            <div className="alert alert-w">⚡ Edit to fully customize meals with totals!</div>
-            {(sel.mealPlan || DEFAULT_MEALS).map((meal, mi) => (
-              <div key={mi} className="meal-card">
-                <div className="meal-head">
-                  <div><span style={{ fontWeight: 700 }}>{meal.name}</span><span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>{meal.time}</span></div>
-                  <span className="bdg bdg-g">{meal.items.reduce((a, i) => a + (i.cal || 0), 0)} kcal</span>
-                </div>
-                <div className="meal-body">
-                  {meal.items.map((item, ii) => (
-                    <div key={ii} className="food-row">
-                      <div><span style={{ fontWeight: 600 }}>{item.food}</span><span style={{ color: "var(--muted)", fontSize: 12, marginLeft: 6 }}>{item.amount}</span></div>
-                      <div style={{ display: "flex", gap: 8, fontSize: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                        <span style={{ color: "var(--purple)" }}>{item.protein}g P</span>
-                        <span style={{ color: "var(--orange)" }}>{item.carbs}g C</span>
-                        <span style={{ color: "var(--red)" }}>{item.fats}g F</span>
-                        <span style={{ color: "#34d399" }}>{item.fiber || 0}g Fib</span>
-                        <span style={{ color: "var(--green)", fontWeight: 700 }}>{item.cal} cal</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <MealTotals items={meal.items} />
-              </div>
-            ))}
-          </div>
-        )}
+
 
         {innerTab === "workout" && (
           <div className="card">
@@ -1178,13 +1330,230 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
           </div>
         )}
 
+        {innerTab === "analytics" && (() => {
+          const mealPlan = sel.mealPlan || DEFAULT_MEALS;
+          const allItems = mealPlan.flatMap(m => m.items);
+          const totP = allItems.reduce((a,i)=>a+(i.protein||0),0);
+          const totC = allItems.reduce((a,i)=>a+(i.carbs||0),0);
+          const totF = allItems.reduce((a,i)=>a+(i.fats||0),0);
+          const totFib = allItems.reduce((a,i)=>a+(i.fiber||0),0);
+          const totCal = allItems.reduce((a,i)=>a+(i.cal||0),0);
+          const calFromP = totP * 4;
+          const calFromC = totC * 4;
+          const calFromF = totF * 9;
+          const nn = sel.nutrition || {};
+          return (
+            <div>
+              {/* COACH SETS daily targets */}
+              <div className="card" style={{ marginBottom: 14 }}>
+                <div className="card-title">🎯 Daily Targets (Coach Sets)</div>
+                <div className="alert alert-w">⚡ Edit these values — client sees them instantly in their Nutrition tab!</div>
+                <div className="fg">
+                  {[["Calories (kcal)","calories","var(--green)"],["Protein (g)","protein","var(--purple)"],["Carbs (g)","carbs","var(--orange)"],["Fats (g)","fats","var(--red)"],["Fiber (g)","fiber","#34d399"]].map(([l,k,co]) => (
+                    <div key={k} className="fld">
+                      <div className="fl" style={{ color: co }}>{l}</div>
+                      <NumInput value={nn[k]||0} color={co} onChange={v => updateN(k, v)} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* TOTALS from meal plan */}
+              <div className="card" style={{ marginBottom: 14 }}>
+                <div className="card-title">📊 Meal Plan Totals (auto-calculated)</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                  {[["Total Protein",totP+"g","var(--purple)"],["Total Carbs",totC+"g","var(--orange)"],["Total Fats",totF+"g","var(--red)"],["Total Fiber",totFib+"g","#34d399"],["Total Calories",totCal+" kcal","var(--green)"]].map(([l,v,co]) => (
+                    <div key={l} style={{ background: "var(--s2)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--border)" }}>
+                      <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 20, fontWeight: 800, color: co }}>{v}</div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", marginTop: 4 }}>{l}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ borderTop: "1px solid var(--border)", paddingTop: 14 }}>
+                  <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13, marginBottom: 10 }}>🔥 Calories from each macro</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                    {[["From Protein",calFromP,"var(--purple)"],["From Carbs",calFromC,"var(--orange)"],["From Fats",calFromF,"var(--red)"]].map(([l,v,co]) => {
+                      const pct = totCal > 0 ? Math.round(v/totCal*100) : 0;
+                      return (
+                        <div key={l} style={{ background: "var(--s2)", borderRadius: 10, padding: "12px", border: "1px solid var(--border)", textAlign: "center" }}>
+                          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 18, fontWeight: 800, color: co }}>{v} kcal</div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginTop: 3 }}>{l}</div>
+                          <div style={{ marginTop: 8 }}>
+                            <div style={{ background: "var(--border)", borderRadius: 4, height: 5, overflow: "hidden" }}>
+                              <div style={{ width: pct+"%", height: "100%", background: co, borderRadius: 4 }} />
+                            </div>
+                            <div style={{ fontSize: 11, color: co, fontWeight: 700, marginTop: 3 }}>{pct}%</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+              {/* PER MEAL breakdown */}
+              <div className="card">
+                <div className="card-title">🍽️ Per Meal Macro Breakdown</div>
+                <table className="tbl">
+                  <thead><tr><th>Meal</th><th>Time</th><th style={{color:"var(--green)"}}>Kcal</th><th style={{color:"var(--purple)"}}>P(g)</th><th style={{color:"var(--orange)"}}>C(g)</th><th style={{color:"var(--red)"}}>F(g)</th><th style={{color:"#34d399"}}>Fib(g)</th></tr></thead>
+                  <tbody>
+                    {mealPlan.map((meal, mi) => {
+                      const mp=meal.items.reduce((a,i)=>a+(i.protein||0),0);
+                      const mc=meal.items.reduce((a,i)=>a+(i.carbs||0),0);
+                      const mf=meal.items.reduce((a,i)=>a+(i.fats||0),0);
+                      const mfib=meal.items.reduce((a,i)=>a+(i.fiber||0),0);
+                      const mcal=meal.items.reduce((a,i)=>a+(i.cal||0),0);
+                      return (
+                        <tr key={mi}>
+                          <td style={{fontWeight:600}}>{meal.name}</td>
+                          <td style={{color:"var(--muted)",fontSize:12}}>{meal.time}</td>
+                          <td style={{fontWeight:700,color:"var(--green)"}}>{mcal}</td>
+                          <td style={{color:"var(--purple)"}}>{mp}</td>
+                          <td style={{color:"var(--orange)"}}>{mc}</td>
+                          <td style={{color:"var(--red)"}}>{mf}</td>
+                          <td style={{color:"#34d399"}}>{mfib}</td>
+                        </tr>
+                      );
+                    })}
+                    <tr style={{borderTop:"2px solid var(--border2)"}}>
+                      <td style={{fontWeight:800,color:"var(--green)"}}>TOTAL</td><td></td>
+                      <td style={{fontWeight:800,color:"var(--green)"}}>{totCal}</td>
+                      <td style={{fontWeight:800,color:"var(--purple)"}}>{totP}</td>
+                      <td style={{fontWeight:800,color:"var(--orange)"}}>{totC}</td>
+                      <td style={{fontWeight:800,color:"var(--red)"}}>{totF}</td>
+                      <td style={{fontWeight:800,color:"#34d399"}}>{totFib}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
+
+        {innerTab === "sources" && (() => {
+          const sources = sel.foodSources || {};
+          return (
+            <div className="card">
+              <div className="card-title">🥦 {sel.name}&apos;s Food Sources</div>
+              <div className="alert alert-g">These are foods {sel.name} told you they can easily access. Use these when designing their meal plan!</div>
+              {[["protein","🥩 Protein Sources","var(--purple)"],["carbs","🍚 Carb Sources","var(--orange)"],["fats","🥑 Fat Sources","var(--red)"]].map(([type,label,color]) => (
+                <div key={type} style={{ marginBottom: 18 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color, marginBottom: 8 }}>{label}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
+                    {[0,1,2,3,4].map(i => {
+                      const val = (sources[type] || [])[i];
+                      return (
+                        <div key={i} style={{ background: "var(--s2)", borderRadius: 9, padding: "10px 12px", border: "1px solid " + (val ? color+"55" : "var(--border)"), textAlign: "center" }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>#{i+1}</div>
+                          <div style={{ fontWeight: 600, fontSize: 13, color: val ? color : "var(--muted)" }}>{val || "—"}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              {!sel.foodSources && <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: "20px 0" }}>Client hasn&apos;t filled their food sources yet.</div>}
+            </div>
+          );
+        })()}
+
+        {/* PDF DOWNLOAD — available in meals tab */}
+        {innerTab === "meals" && (() => {
+          const mealPlan = sel.mealPlan || DEFAULT_MEALS;
+          const downloadPDF = () => {
+            const allItems = mealPlan.flatMap(m=>m.items);
+            const totP = allItems.reduce((a,i)=>a+(i.protein||0),0);
+            const totC = allItems.reduce((a,i)=>a+(i.carbs||0),0);
+            const totF = allItems.reduce((a,i)=>a+(i.fats||0),0);
+            const totCal = allItems.reduce((a,i)=>a+(i.cal||0),0);
+            let txt = "MEAL PLAN — " + sel.name + "
+";
+            txt += "Generated: " + new Date().toLocaleDateString("en-IN") + "
+";
+            txt += "Phase: " + sel.phase + " | Week: " + sel.week + "
+";
+            txt += "=".repeat(60) + "
+
+";
+            mealPlan.forEach(meal => {
+              txt += meal.name.toUpperCase() + " (" + meal.time + ")
+";
+              txt += "-".repeat(40) + "
+";
+              meal.items.forEach(item => {
+                txt += "  " + item.food + " — " + item.amount + "
+";
+                txt += "    Cal: " + item.cal + " | P: " + item.protein + "g | C: " + item.carbs + "g | F: " + item.fats + "g | Fib: " + (item.fiber||0) + "g
+";
+              });
+              const mc=meal.items.reduce((a,i)=>a+(i.cal||0),0);
+              const mp=meal.items.reduce((a,i)=>a+(i.protein||0),0);
+              const mcarb=meal.items.reduce((a,i)=>a+(i.carbs||0),0);
+              const mf=meal.items.reduce((a,i)=>a+(i.fats||0),0);
+              txt += "  MEAL TOTAL → " + mc + " kcal | P: " + mp + "g | C: " + mcarb + "g | F: " + mf + "g
+
+";
+            });
+            txt += "=".repeat(60) + "
+";
+            txt += "DAILY TOTALS
+";
+            txt += "Total Calories: " + totCal + " kcal
+";
+            txt += "Total Protein: " + totP + "g (" + (totP*4) + " kcal)
+";
+            txt += "Total Carbs: " + totC + "g (" + (totC*4) + " kcal)
+";
+            txt += "Total Fats: " + totF + "g (" + (totF*9) + " kcal)
+";
+            const blob = new Blob([txt], { type: "text/plain" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url; a.download = sel.name.replace(/ /g,"_") + "_MealPlan.txt";
+            a.click(); URL.revokeObjectURL(url);
+          };
+          return (
+            <div className="card">
+              <div className="card-title">
+                🍽️ Meal Plan for {sel.name}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn btn-s btn-sm" onClick={downloadPDF}>⬇️ Download TXT</button>
+                  <button className="btn btn-p btn-sm" onClick={() => setShowMealEditor(true)}>✏️ Edit</button>
+                </div>
+              </div>
+              <div className="alert alert-w">⚡ Edit meals · Download as text file to reuse as template!</div>
+              {mealPlan.map((meal, mi) => (
+                <div key={mi} className="meal-card">
+                  <div className="meal-head">
+                    <div><span style={{ fontWeight: 700 }}>{meal.name}</span><span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>{meal.time}</span></div>
+                    <span className="bdg bdg-g">{meal.items.reduce((a, i) => a + (i.cal || 0), 0)} kcal</span>
+                  </div>
+                  <div className="meal-body">
+                    {meal.items.map((item, ii) => (
+                      <div key={ii} className="food-row">
+                        <div><span style={{ fontWeight: 600 }}>{item.food}</span><span style={{ color: "var(--muted)", fontSize: 12, marginLeft: 6 }}>{item.amount}</span></div>
+                        <div style={{ display: "flex", gap: 8, fontSize: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                          <span style={{ color: "var(--purple)" }}>{item.protein}g P</span>
+                          <span style={{ color: "var(--orange)" }}>{item.carbs}g C</span>
+                          <span style={{ color: "var(--red)" }}>{item.fats}g F</span>
+                          <span style={{ color: "#34d399" }}>{item.fiber || 0}g Fib</span>
+                          <span style={{ color: "var(--green)", fontWeight: 700 }}>{item.cal} cal</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <MealTotals items={meal.items} />
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         {showWorkoutEditor && <WorkoutEditor plan={sel.workoutPlan || DEFAULT_WORKOUT} onSave={saveWorkout} onClose={() => setShowWorkoutEditor(false)} />}
         {showMealEditor && <MealEditor plan={sel.mealPlan || DEFAULT_MEALS} onSave={saveMeals} onClose={() => setShowMealEditor(false)} />}
         {videoModal && <VideoModal url={videoModal.videoUrl} name={videoModal.name} onClose={() => setVideoModal(null)} />}
         {viewMedia && (
           <div className="ov" onClick={() => setViewMedia(null)}>
             <div style={{ maxWidth: 520, width: "100%" }}>
-              {viewMedia.type === "video" ? <video src={viewMedia.data} controls style={{ width: "100%", borderRadius: 16 }} /> : <img src={viewMedia.data} alt="" style={{ width: "100%", borderRadius: 16 }} />}
+              {viewMedia.type === "video" ? <video src={viewMedia.url} controls style={{ width: "100%", borderRadius: 16 }} /> : <img src={viewMedia.url || viewMedia.data} alt="" style={{ width: "100%", borderRadius: 16 }} />}
               <div style={{ textAlign: "center", marginTop: 10, color: "var(--muted2)", fontSize: 13 }}>{sel.name} · {viewMedia.date}</div>
               <div style={{ textAlign: "center", marginTop: 8 }}><button className="btn btn-s btn-sm" onClick={() => setViewMedia(null)}>Close</button></div>
             </div>
@@ -1365,16 +1734,13 @@ function LoginScreen({ onLogin, onSetup, coachExists }) {
         <div className="auth-sub">Sign in to your coaching platform</div>
         <div className="fld"><div className="fl">Email</div><input className="fi" type="email" placeholder="your@email.com" value={em} onChange={e => setEm(e.target.value)} onKeyDown={e => e.key === "Enter" && login()} /></div>
         <div className="fld">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span className="fl" style={{ margin: 0 }}>Password</span>
-            <button className="forgot-btn" onClick={() => setShowForgot(true)}>Forgot password?</button>
-          </div>
+          <div className="fl">Password</div>
           <input className="fi" type="password" placeholder="••••••••" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === "Enter" && login()} />
         </div>
         {err && <div className="alert alert-e">{err}</div>}
         <button className="auth-btn" onClick={login} disabled={ld}>{ld ? "Signing in..." : "Sign In →"}</button>
-        <div style={{ textAlign: "center", marginTop: 14 }}>
-          <button className="forgot-btn" style={{ fontSize: 13, color: "var(--muted2)" }} onClick={() => setShowForgot(true)}>🔑 Forgot your password?</button>
+        <div style={{ textAlign: "right", marginTop: 8 }}>
+          <button style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--muted)", textDecoration: "underline" }} onClick={() => setShowForgot(true)}>Forgot password?</button>
         </div>
         {!coachExists && <div className="auth-switch">First time? <button onClick={onSetup}>Create coach account</button></div>}
         {coachExists && <div style={{ textAlign: "center", marginTop: 14, fontSize: 11, color: "var(--muted)", padding: 10, background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)" }}>🔒 Contact your coach for login credentials.</div>}
@@ -1463,7 +1829,7 @@ export default function App() {
   const isCoach = user.role === "coach";
   const tabs = isCoach
     ? [["home", "🏠 Dashboard"], ["clients", "👥 Clients"], ["analytics", "📊 Analytics"]]
-    : [["home", "🏠 Home"], ["nutrition", "🥩 Nutrition"], ["training", "🏋️ Training"], ["photos", "📸 Photos"], ["comparison", "🔄 Compare"]];
+    : [["home", "🏠 Home"], ["nutrition", "🥩 Nutrition"], ["sources", "🥦 My Sources"], ["training", "🏋️ Training"], ["photos", "📸 Photos"], ["comparison", "🔄 Compare"]];
 
   return (
     <div style={{ minHeight: "100vh" }}>
