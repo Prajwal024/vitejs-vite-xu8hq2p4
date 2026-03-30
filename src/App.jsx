@@ -10,19 +10,16 @@ import {
   collection, query, where, serverTimestamp,
 } from "firebase/firestore";
 
-// ─── CLOUDINARY CONFIG ───────────────────────────────────────────────────────
+// ─── CLOUDINARY CONFIG ────────────────────────────────────────────────────────
 // Replace with your own Cloudinary cloud name and unsigned upload preset
-const CLOUDINARY_CLOUD_NAME = "YOUR_CLOUD_NAME";          // e.g. "dxyz123abc"
-const CLOUDINARY_UPLOAD_PRESET = "YOUR_UPLOAD_PRESET";    // e.g. "fitforge_unsigned"
-// To enable delete, add your Cloudinary API Key below (optional, for server-side delete)
-// For client-side we store the public_id and call the destroy endpoint via a small proxy or
-// use a signed delete. For simplicity we use the unsigned approach and just remove from Firestore.
+const CLOUDINARY_CLOUD_NAME = "YOUR_CLOUD_NAME";       // e.g. "dxyz123abc"
+const CLOUDINARY_UPLOAD_PRESET = "YOUR_UPLOAD_PRESET"; // e.g. "fitwithankit_unsigned"
 
 async function cloudinaryUpload(file, onProgress) {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-  formData.append("folder", "fitforge");
+  formData.append("folder", "fitwithankit");
 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -210,10 +207,20 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .upload-area:hover{border-color:var(--green);background:var(--green-bg)}
 .video-badge{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.7);color:#fff;border-radius:6px;padding:2px 6px;font-size:10px;font-weight:700}
 .note-box{background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:9px 12px;font-size:12px;color:#fcd34d;line-height:1.55;margin-top:6px;white-space:pre-wrap}
+/* ── SOURCES MINI PANEL ── */
 .sources-mini{background:var(--s3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px}
 .sources-mini-title{font-size:11px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
 .sources-mini-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
 .sources-mini-tag{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid}
+/* ── SOURCES TABLE (compact, shown in meal editor) ── */
+.sources-table-wrap{background:var(--s3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:16px}
+.sources-table-title{font-size:11px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.sources-table{width:100%;border-collapse:collapse}
+.sources-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:5px 8px;border-bottom:1px solid var(--border);text-align:left}
+.sources-table td{font-size:12px;padding:5px 8px;border-bottom:1px solid var(--border)}
+.sources-table tr:last-child td{border-bottom:none}
+.sources-table tr:hover td{background:rgba(255,255,255,.02)}
+/* ── */
 .prog-bar{height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin-top:6px}
 .prog-fill{height:100%;border-radius:2px;transition:width .4s ease}
 @media(max-width:700px){.g4{grid-template-columns:1fr 1fr}.fg{grid-template-columns:1fr}.nav-tabs{display:none}.wk-grid{grid-template-columns:repeat(3,1fr)}}
@@ -267,38 +274,52 @@ function MealTotals({ items }) {
   );
 }
 
-// ─── SOURCES MINI PANEL (shown in meal editor) ────────────────────────────────
-function SourcesMiniPanel({ sources }) {
+// ─── SOURCES TABLE (compact, for coach to see inline in meal editor) ──────────
+function SourcesTablePanel({ sources }) {
   if (!sources) return null;
   const cats = [
-    { key: "protein", label: "Protein Sources", color: "var(--purple)", border: "rgba(167,139,250,.35)" },
-    { key: "carbs", label: "Carb Sources", color: "var(--orange)", border: "rgba(251,146,60,.35)" },
-    { key: "fats", label: "Fat Sources", color: "var(--red)", border: "rgba(248,113,113,.35)" },
+    { key: "protein", label: "Protein", color: "var(--purple)" },
+    { key: "carbs",   label: "Carbs",   color: "var(--orange)" },
+    { key: "fats",    label: "Fats",    color: "var(--red)" },
   ];
   const hasAny = cats.some(c => (sources[c.key] || []).some(v => v));
   if (!hasAny) return (
-    <div className="sources-mini">
-      <div className="sources-mini-title">Client Food Sources</div>
+    <div className="sources-table-wrap">
+      <div className="sources-table-title">📋 Client Food Sources</div>
       <div style={{ fontSize: 12, color: "var(--muted)" }}>Client has not filled food sources yet.</div>
     </div>
   );
+  // Build rows: up to 5 items each column
+  const rows = [];
+  for (let i = 0; i < 5; i++) {
+    const p = (sources.protein || [])[i] || "";
+    const c = (sources.carbs || [])[i] || "";
+    const f = (sources.fats || [])[i] || "";
+    if (p || c || f) rows.push({ i, p, c, f });
+  }
   return (
-    <div className="sources-mini">
-      <div className="sources-mini-title">Client Food Sources (use these for meal planning)</div>
-      {cats.map(({ key, label, color, border }) => {
-        const items = (sources[key] || []).filter(v => v);
-        if (!items.length) return null;
-        return (
-          <div key={key} style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>{label}</div>
-            <div className="sources-mini-row">
-              {items.map((item, i) => (
-                <span key={i} className="sources-mini-tag" style={{ color, borderColor: border, background: color + "12" }}>{item}</span>
-              ))}
-            </div>
-          </div>
-        );
-      })}
+    <div className="sources-table-wrap">
+      <div className="sources-table-title">📋 Client Food Sources <span style={{ fontWeight: 400, color: "var(--muted)", textTransform: "none", letterSpacing: 0 }}>(use these when building the meal plan)</span></div>
+      <table className="sources-table">
+        <thead>
+          <tr>
+            <th style={{ color: "var(--muted2)" }}>#</th>
+            <th style={{ color: "var(--purple)" }}>Protein</th>
+            <th style={{ color: "var(--orange)" }}>Carbs</th>
+            <th style={{ color: "var(--red)" }}>Fats</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ i, p, c, f }) => (
+            <tr key={i}>
+              <td style={{ color: "var(--muted)", fontSize: 10, fontWeight: 700 }}>{i + 1}</td>
+              <td style={{ color: p ? "var(--purple)" : "var(--muted)", fontWeight: p ? 600 : 400 }}>{p || "—"}</td>
+              <td style={{ color: c ? "var(--orange)" : "var(--muted)", fontWeight: c ? 600 : 400 }}>{c || "—"}</td>
+              <td style={{ color: f ? "var(--red)" : "var(--muted)", fontWeight: f ? 600 : 400 }}>{f || "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -308,8 +329,8 @@ function SourcesMiniReadonly({ sources }) {
   if (!sources) return null;
   const cats = [
     { key: "protein", label: "My Protein Sources", color: "var(--purple)", border: "rgba(167,139,250,.35)" },
-    { key: "carbs", label: "My Carb Sources", color: "var(--orange)", border: "rgba(251,146,60,.35)" },
-    { key: "fats", label: "My Fat Sources", color: "var(--red)", border: "rgba(248,113,113,.35)" },
+    { key: "carbs",   label: "My Carb Sources",    color: "var(--orange)", border: "rgba(251,146,60,.35)" },
+    { key: "fats",    label: "My Fat Sources",     color: "var(--red)",    border: "rgba(248,113,113,.35)" },
   ];
   const hasAny = cats.some(c => (sources[c.key] || []).some(v => v));
   if (!hasAny) return null;
@@ -334,7 +355,7 @@ function SourcesMiniReadonly({ sources }) {
   );
 }
 
-// ─── WORKOUT EDITOR ───────────────────────────────────────────────────────────
+// ─── WORKOUT EDITOR (coach only) ──────────────────────────────────────────────
 function WorkoutEditor({ plan, onSave, onClose }) {
   const [days, setDays] = useState(JSON.parse(JSON.stringify(plan)));
   const TYPES = ["Push", "Pull", "Legs", "Rest", "Cardio", "Full Body"];
@@ -347,7 +368,10 @@ function WorkoutEditor({ plan, onSave, onClose }) {
   return (
     <div className="ov" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal modal-lg">
-        <div className="mh"><div><div className="mt">Edit Workout Plan</div><div className="ms">Add exercises, video demos and coaching notes per exercise</div></div><button className="xbtn" onClick={onClose}>✕</button></div>
+        <div className="mh">
+          <div><div className="mt">Edit Workout Plan</div><div className="ms">Add exercises, video demos and coaching notes per exercise</div></div>
+          <button className="xbtn" onClick={onClose}>✕</button>
+        </div>
         <div className="mb2">
           {days.map((day, di) => (
             <div key={di} style={{ background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 10, padding: 14, marginBottom: 12 }}>
@@ -397,15 +421,15 @@ function WorkoutEditor({ plan, onSave, onClose }) {
                           </div>
                         )}
                       </div>
-                      {/* Row 3: Coaching Note */}
+                      {/* Row 3: Coaching Note (editable by coach, read-only for client) */}
                       <div>
-                        <div className="fl" style={{ color: "#fbbf24" }}>Coaching Note (visible to client)</div>
+                        <div className="fl" style={{ color: "#fbbf24" }}>📝 Coaching Note <span style={{ fontWeight: 400, color: "var(--muted)", textTransform: "none" }}>(client can read this)</span></div>
                         <textarea
                           className="fta"
-                          style={{ minHeight: 56, fontSize: 12, borderColor: ex.note ? "rgba(251,191,36,.4)" : undefined, background: ex.note ? "rgba(251,191,36,.05)" : undefined }}
+                          style={{ minHeight: 60, fontSize: 12, borderColor: ex.note ? "rgba(251,191,36,.4)" : undefined, background: ex.note ? "rgba(251,191,36,.05)" : undefined }}
                           value={ex.note || ""}
                           onChange={e => updateEx(di, ei, "note", e.target.value)}
-                          placeholder="e.g. Use 30° incline. Keep elbows tucked. Focus on the stretch at the bottom. Controlled negative."
+                          placeholder="e.g. Use 30° incline. Keep elbows tucked. Focus on the stretch. Controlled negative on the way down."
                         />
                       </div>
                     </div>
@@ -426,7 +450,7 @@ function WorkoutEditor({ plan, onSave, onClose }) {
   );
 }
 
-// ─── MEAL EDITOR ──────────────────────────────────────────────────────────────
+// ─── MEAL EDITOR (coach only — shows sources table inline) ───────────────────
 function MealEditor({ plan, onSave, onClose, clientSources }) {
   const [meals, setMeals] = useState(JSON.parse(JSON.stringify(plan)));
   const updateMeal = (mi, f, v) => setMeals(m => m.map((meal, i) => i === mi ? { ...meal, [f]: v } : meal));
@@ -438,10 +462,13 @@ function MealEditor({ plan, onSave, onClose, clientSources }) {
   return (
     <div className="ov" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal modal-lg">
-        <div className="mh"><div><div className="mt">Edit Meal Plan</div><div className="ms">Protein, Carbs, Fats, Fiber + auto totals</div></div><button className="xbtn" onClick={onClose}>✕</button></div>
+        <div className="mh">
+          <div><div className="mt">Edit Meal Plan</div><div className="ms">Protein, Carbs, Fats, Fiber + auto totals</div></div>
+          <button className="xbtn" onClick={onClose}>✕</button>
+        </div>
         <div className="mb2">
-          {/* Sources quick reference panel */}
-          <SourcesMiniPanel sources={clientSources} />
+          {/* ── SOURCES TABLE always visible at top of meal editor ── */}
+          <SourcesTablePanel sources={clientSources} />
 
           {meals.map((meal, mi) => (
             <div key={mi} style={{ background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 14, overflow: "hidden" }}>
@@ -563,6 +590,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
     setLw(""); setLwa(""); setLbf(""); setSaving(false);
   };
 
+  // ── Upload to Cloudinary ──
   const uploadMedia = async (files) => {
     if (!files || files.length === 0) return;
     setUploading(true);
@@ -593,20 +621,17 @@ function ClientDash({ uid, tab, setTab, toast }) {
         toast("Upload failed: " + err.message, "error");
       }
     }
-    if (successCount > 0) toast(`${successCount} file(s) uploaded!`, "success");
+    if (successCount > 0) toast(`${successCount} file(s) uploaded successfully!`, "success");
     setUploading(false);
     setUploadPct(0);
   };
 
   const deleteMedia = async (photo) => {
-    if (!window.confirm("Delete this photo?")) return;
+    if (!window.confirm("Delete this photo/video?")) return;
     const current = d.photos || [];
     const updated = current.filter(p => p.timestamp !== photo.timestamp);
     await updateDoc(doc(db, "clients", uid), { photos: updated });
-    toast("Photo removed.", "success");
-    // Note: to actually delete from Cloudinary you need a server-side call.
-    // The file is removed from the client's view. Contact your developer to add
-    // a Cloudinary webhook or Cloud Function for full deletion.
+    toast("Removed.", "success");
   };
 
   if (loading) return <div className="spin-wrap"><div className="spinner" /><span>Loading your plan...</span></div>;
@@ -618,7 +643,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
   const checkins = d.checkIns || [];
   const sources = d.foodSources || null;
 
-  // ── TRAINING TAB
+  // ── TRAINING TAB ──
   if (tab === "training") return (
     <div className="page">
       <div style={{ marginBottom: 22 }}>
@@ -649,7 +674,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{ex.name}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Rest: {ex.rest}</div>
-                    {/* Coaching note shown to client */}
+                    {/* Coaching note — read-only for client */}
                     {ex.note && <div className="note-box">📝 {ex.note}</div>}
                     <div style={{ marginTop: 6, display: "flex", gap: 6 }}>
                       {ex.videoUrl && <button className="btn btn-s btn-xs" onClick={() => setVideoModal(ex)}>▶ Watch Demo</button>}
@@ -668,7 +693,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
     </div>
   );
 
-  // ── NUTRITION TAB
+  // ── NUTRITION TAB ──
   if (tab === "nutrition") {
     const allItems = meals.flatMap(m => m.items);
     const totP = allItems.reduce((a, i) => a + (i.protein || 0), 0);
@@ -683,9 +708,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
           <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Your Nutrition Plan</div>
           <div className="live" style={{ marginTop: 7 }}><span className="dot" />Updates live from coach</div>
         </div>
-        {/* Sources mini panel */}
         <SourcesMiniReadonly sources={sources} />
-
         <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, marginBottom: 10, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".07em" }}>Daily Targets</div>
         <div className="g4" style={{ marginBottom: 20 }}>
           <MC label="Calories" value={n.calories} color="var(--green)" flash={!!flash.calories} />
@@ -731,7 +754,6 @@ function ClientDash({ uid, tab, setTab, toast }) {
             </div>
           );
         })}
-        {/* Macro breakdown */}
         <div className="card" style={{ marginBottom: 14 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
             {[["Total Protein", totP + "g", "var(--purple)"], ["Total Carbs", totC + "g", "var(--orange)"], ["Total Fats", totF + "g", "var(--red)"], ["Total Fiber", totFib + "g", "#34d399"], ["Total Calories", totCal + " kcal", "var(--green)"]].map(([l, v, co]) => (
@@ -764,7 +786,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
     );
   }
 
-  // ── SOURCES TAB
+  // ── SOURCES TAB ──
   if (tab === "sources") {
     const srcs = d.foodSources || { protein: ["", "", "", "", ""], carbs: ["", "", "", "", ""], fats: ["", "", "", "", ""] };
     const updateSource = async (type, idx, val) => {
@@ -798,7 +820,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
     );
   }
 
-  // ── PHOTOS TAB
+  // ── PHOTOS TAB ──
   if (tab === "photos") {
     const clientPhotos = d.photos || [];
     const photoCount = clientPhotos.filter(p => p.type !== "video").length;
@@ -816,7 +838,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
             <div style={{ fontWeight: 700, fontSize: 16, color: uploading ? "var(--muted)" : "var(--green)", marginBottom: 6 }}>
               {uploading ? `Uploading… ${uploadPct}%` : "Upload Progress Photos / Videos"}
             </div>
-            <div style={{ color: "var(--muted2)", fontSize: 13, marginBottom: 10 }}>Select multiple files at once — full quality</div>
+            <div style={{ color: "var(--muted2)", fontSize: 13, marginBottom: 10 }}>Select multiple files at once — full quality, stored free on Cloudinary</div>
             {uploading && (
               <div className="prog-bar" style={{ maxWidth: 300, margin: "0 auto 10px" }}>
                 <div className="prog-fill" style={{ width: uploadPct + "%", background: "var(--green)" }} />
@@ -862,20 +884,19 @@ function ClientDash({ uid, tab, setTab, toast }) {
     );
   }
 
-  // ── COMPARISON TAB
+  // ── COMPARISON TAB ──
   if (tab === "comparison") {
-    const allCheckins = [...checkins];
     return (
       <div className="page">
         <div style={{ marginBottom: 22 }}>
           <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Week by Week Comparison</div>
           <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>See your progress side by side</div>
         </div>
-        {allCheckins.length < 2 ? (
+        {checkins.length < 2 ? (
           <div className="card"><div className="empty"><div className="empty-icon">📊</div><div className="empty-title">Not enough data yet</div><div className="empty-desc">Log at least 2 check-ins to see comparisons.</div></div></div>
         ) : (
           <div className="cmp-grid">
-            {allCheckins.map((c, i) => (
+            {checkins.map((c, i) => (
               <div key={i} className="cmp-card">
                 <div className="cmp-head" style={{ color: "var(--green)" }}>{c.week} — {c.date}</div>
                 <div className="cmp-body">
@@ -887,8 +908,8 @@ function ClientDash({ uid, tab, setTab, toast }) {
                       <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>Change from prev</div>
                       <div className="cmp-stat">
                         <span style={{ color: "var(--muted)" }}>Weight</span>
-                        <span style={{ fontWeight: 700, color: (c.weight - allCheckins[i - 1].weight) < 0 ? "var(--green)" : "var(--red)" }}>
-                          {(c.weight - allCheckins[i - 1].weight) > 0 ? "+" : ""}{(c.weight - allCheckins[i - 1].weight).toFixed(1)} kg
+                        <span style={{ fontWeight: 700, color: (c.weight - checkins[i - 1].weight) < 0 ? "var(--green)" : "var(--red)" }}>
+                          {(c.weight - checkins[i - 1].weight) > 0 ? "+" : ""}{(c.weight - checkins[i - 1].weight).toFixed(1)} kg
                         </span>
                       </div>
                     </div>
@@ -902,7 +923,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
     );
   }
 
-  // ── HOME TAB
+  // ── HOME TAB ──
   return (
     <div className="page">
       <div style={{ marginBottom: 22 }}>
@@ -989,7 +1010,6 @@ function ClientDash({ uid, tab, setTab, toast }) {
           </div>
         </>
       )}
-      {/* Inline workout modal */}
       {wModal && (
         <div className="ov" onClick={e => e.target === e.currentTarget && setWModal(null)}>
           <div className="modal">
@@ -1096,7 +1116,6 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
     setAddSaving(false);
   };
 
-  // Coach deletes client photo (removes from Firestore)
   const deleteClientPhoto = async (photo) => {
     if (!window.confirm("Remove this photo from the client's profile?")) return;
     const current = sel.photos || [];
@@ -1107,7 +1126,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
 
   if (loading) return <div className="spin-wrap"><div className="spinner" /><span>Loading...</span></div>;
 
-  // ── ANALYTICS TAB
+  // ── ANALYTICS TAB ──
   if (tab === "analytics") return (
     <div className="page">
       <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 22 }}>Analytics</div>
@@ -1139,7 +1158,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
     </div>
   );
 
-  // ── CLIENT DETAIL VIEW
+  // ── CLIENT DETAIL VIEW ──
   if (tab === "clients" && sel) {
     const n = sel.nutrition || {};
     const checkins = sel.checkIns || [];
@@ -1197,8 +1216,8 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
               <div className="card-title">Current Message</div>
               <div className={"msg-b" + (sel.coachMessage ? " has" : "")}>{sel.coachMessage || "No message sent yet."}</div>
             </div>
-            {/* All food sources summary */}
-            <SourcesMiniPanel sources={clientSources} />
+            {/* All food sources — full table on overview */}
+            <SourcesTablePanel sources={clientSources} />
           </div>
         )}
 
@@ -1332,7 +1351,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
                         {ex.videoUrl && <button className="btn btn-s btn-xs" onClick={() => setVideoModal(ex)}>Watch</button>}
                       </div>
                     </div>
-                    {/* Note preview for coach */}
+                    {/* Note preview — coach can see & edit via editor */}
                     {ex.note && <div className="note-box" style={{ marginTop: 5 }}>📝 {ex.note}</div>}
                   </div>
                 ))}
@@ -1460,6 +1479,8 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
             <div className="card">
               <div className="card-title">{sel.name}'s Food Sources</div>
               <div className="alert alert-g">Use these when designing {sel.name.split(" ")[0]}'s meal plan!</div>
+              {/* Full table view for coach */}
+              <SourcesTablePanel sources={sel.foodSources || null} />
               {[["protein", "Protein Sources", "var(--purple)"], ["carbs", "Carb Sources", "var(--orange)"], ["fats", "Fat Sources", "var(--red)"]].map(([type, label, color]) => (
                 <div key={type} style={{ marginBottom: 18 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color, marginBottom: 8 }}>{label}</div>
@@ -1516,8 +1537,8 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
                   <button className="btn btn-p btn-sm" onClick={() => setShowMealEditor(true)}>Edit Plan</button>
                 </div>
               </div>
-              {/* Sources panel inside meal view */}
-              <SourcesMiniPanel sources={clientSources} />
+              {/* Sources table always visible in meals tab */}
+              <SourcesTablePanel sources={clientSources} />
               {mealPlan.map((meal, mi) => (
                 <div key={mi} className="meal-card">
                   <div className="meal-head">
@@ -1561,7 +1582,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
     );
   }
 
-  // ── CLIENTS LIST
+  // ── CLIENTS LIST ──
   if (tab === "clients") return (
     <div className="page">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
@@ -1629,12 +1650,12 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
     </div>
   );
 
-  // ── COACH HOME
+  // ── COACH HOME ──
   return (
     <div className="page">
       <div style={{ marginBottom: 24 }}>
-        <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 26, fontWeight: 800 }}>Welcome, {coachName?.split(" ")[0] || "Coach"} 👋</div>
-        <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>{clients.length} client{clients.length !== 1 ? "s" : ""} — FitForge Dashboard</div>
+        <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 26, fontWeight: 800 }}>Welcome, {coachName?.split(" ")[0] || "Ankit"} 👋</div>
+        <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>{clients.length} client{clients.length !== 1 ? "s" : ""} — Fit with Ankit Dashboard</div>
       </div>
       <div className="g4" style={{ marginBottom: 24 }}>
         {[["Total Clients", clients.length, "var(--green)"], ["Total Check-ins", clients.reduce((a, c) => a + (c.checkIns || []).length, 0), "var(--blue)"], ["Media Uploaded", clients.reduce((a, c) => a + (c.photos || []).length, 0), "var(--purple)"], ["Need Attention", clients.filter(c => !c.coachMessage).length, "var(--orange)"]].map(([l, v, co]) => (
@@ -1700,7 +1721,7 @@ function LoginScreen({ onLogin, onSetup, coachExists }) {
   if (showForgot) return (
     <div className="auth-wrap">
       <div className="auth-card">
-        <div className="auth-logo">FF</div>
+        <div className="auth-logo">FwA</div>
         <div className="auth-title">Reset Password</div>
         <div className="auth-sub">Enter your email to receive a reset link</div>
         {forgotSent
@@ -1718,9 +1739,9 @@ function LoginScreen({ onLogin, onSetup, coachExists }) {
   return (
     <div className="auth-wrap">
       <div className="auth-card">
-        <div className="auth-logo">FF</div>
-        <div className="auth-title">FitForge</div>
-        <div className="auth-sub">by Ankit · Sign in to your coaching platform</div>
+        <div className="auth-logo">FwA</div>
+        <div className="auth-title">Fit with Ankit</div>
+        <div className="auth-sub">Your personalised coaching platform</div>
         <div className="fld"><div className="fl">Email</div><input className="fi" type="email" placeholder="your@email.com" value={em} onChange={e => setEm(e.target.value)} onKeyDown={e => e.key === "Enter" && login()} /></div>
         <div className="fld"><div className="fl">Password</div><input className="fi" type="password" placeholder="password" value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === "Enter" && login()} /></div>
         {err && <div className="alert alert-e">{err}</div>}
@@ -1729,7 +1750,7 @@ function LoginScreen({ onLogin, onSetup, coachExists }) {
           <button style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--muted)", textDecoration: "underline" }} onClick={() => setShowForgot(true)}>Forgot password?</button>
         </div>
         {!coachExists && <div className="auth-switch">First time? <button onClick={onSetup}>Create coach account</button></div>}
-        {coachExists && <div style={{ textAlign: "center", marginTop: 14, fontSize: 11, color: "var(--muted)", padding: 10, background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)" }}>Contact your coach for login credentials.</div>}
+        {coachExists && <div style={{ textAlign: "center", marginTop: 14, fontSize: 11, color: "var(--muted)", padding: 10, background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)" }}>Contact Ankit for your login credentials.</div>}
       </div>
     </div>
   );
@@ -1755,8 +1776,8 @@ function SetupScreen({ onDone }) {
   return (
     <div className="auth-wrap">
       <div className="auth-card">
-        <div className="auth-logo">FF</div>
-        <div className="auth-title">Setup FitForge</div>
+        <div className="auth-logo">FwA</div>
+        <div className="auth-title">Setup Fit with Ankit</div>
         <div className="auth-sub">Create your coach account — one time setup</div>
         <div className="fld"><div className="fl">Full Name</div><input className="fi" placeholder="Ankit" value={f.name} onChange={e => setF(p => ({ ...p, name: e.target.value }))} /></div>
         <div className="fld"><div className="fl">Email</div><input className="fi" type="email" placeholder="ankit@email.com" value={f.email} onChange={e => setF(p => ({ ...p, email: e.target.value }))} /></div>
@@ -1804,7 +1825,7 @@ export default function App() {
   if (authLoading) return (
     <div style={{ background: "var(--bg)" }}>
       <style>{CSS}</style>
-      <div className="spin-wrap" style={{ minHeight: "100vh" }}><div className="spinner" /><span>Loading FitForge...</span></div>
+      <div className="spin-wrap" style={{ minHeight: "100vh" }}><div className="spinner" /><span>Loading Fit with Ankit...</span></div>
     </div>
   );
 
@@ -1826,10 +1847,9 @@ export default function App() {
       <nav className="nav">
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
           <button className="nav-logo" onClick={() => setTab("home")}>
-            <div className="nav-icon">FF</div>
-            <span className="nav-brand">Fit<span>Forge</span></span>
+            <div className="nav-icon">FwA</div>
+            <span className="nav-brand">Fit with <span>Ankit</span></span>
           </button>
-          <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 600 }}>by Ankit</div>
           <div className="nav-tabs">
             {tabs.map(([k, l]) => <button key={k} className={tab === k ? "nav-tab active" : "nav-tab"} onClick={() => setTab(k)}>{l}</button>)}
           </div>
