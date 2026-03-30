@@ -1464,7 +1464,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
             const totC = allItems.reduce((a,i)=>a+(i.carbs||0),0);
             const totF = allItems.reduce((a,i)=>a+(i.fats||0),0);
             const totCal = allItems.reduce((a,i)=>a+(i.cal||0),0);
-            let txt = "MEAL PLAN — " + sel.name + "
+            let txt = "MEAL PLAN - " + sel.name + "\n";
 ";
             txt += "Generated: " + new Date().toLocaleDateString("en-IN") + "
 ";
