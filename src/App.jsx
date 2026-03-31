@@ -11,8 +11,8 @@ import {
 } from "firebase/firestore";
 
 // ─── CLOUDINARY CONFIG ────────────────────────────────────────────────────────
-const CLOUDINARY_CLOUD_NAME = "dxyz123abc";
-const CLOUDINARY_UPLOAD_PRESET = "coacahkit_upload";
+const CLOUDINARY_CLOUD_NAME = "dputo3zsh";
+const CLOUDINARY_UPLOAD_PRESET = "coachkit_upload";
 
 async function cloudinaryUpload(file, onProgress) {
   const formData = new FormData();
