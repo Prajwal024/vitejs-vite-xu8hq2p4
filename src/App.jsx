@@ -12,7 +12,7 @@ import {
 
 // ─── CLOUDINARY CONFIG ────────────────────────────────────────────────────────
 const CLOUDINARY_CLOUD_NAME = "dxyz123abc";
-const CLOUDINARY_UPLOAD_PRESET = "coachkit_upload";
+const CLOUDINARY_UPLOAD_PRESET = "coachakit_upload";
 
 async function cloudinaryUpload(file, onProgress) {
   const formData = new FormData();
