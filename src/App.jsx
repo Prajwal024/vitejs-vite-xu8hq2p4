@@ -29,6 +29,17 @@ async function cloudinaryUpload(file, onProgress) {
   });
 }
 
+// ─── DAY COLORS ───────────────────────────────────────────────────────────────
+const DAY_COLORS = [
+  { bg: "rgba(34,197,94,.08)",   border: "rgba(34,197,94,.4)",   accent: "#22c55e",  label: "MON" },
+  { bg: "rgba(59,130,246,.08)",  border: "rgba(59,130,246,.4)",  accent: "#3b82f6",  label: "TUE" },
+  { bg: "rgba(167,139,250,.08)", border: "rgba(167,139,250,.4)", accent: "#a78bfa",  label: "WED" },
+  { bg: "rgba(251,146,60,.08)",  border: "rgba(251,146,60,.4)",  accent: "#fb923c",  label: "THU" },
+  { bg: "rgba(248,113,113,.08)", border: "rgba(248,113,113,.4)", accent: "#f87171",  label: "FRI" },
+  { bg: "rgba(251,191,36,.08)",  border: "rgba(251,191,36,.4)",  accent: "#fbbf24",  label: "SAT" },
+  { bg: "rgba(20,184,166,.08)",  border: "rgba(20,184,166,.4)",  accent: "#14b8a6",  label: "SUN" },
+];
+
 // ─── DEFAULT DATA ─────────────────────────────────────────────────────────────
 const DEFAULT_WORKOUT = [
   { day: "Monday", type: "Push", exercises: [{ name: "Bench Press", sets: 4, reps: "8-10", rest: "90s", videoUrl: "", note: "" }, { name: "Overhead Press", sets: 3, reps: "10-12", rest: "75s", videoUrl: "", note: "" }, { name: "Tricep Pushdowns", sets: 3, reps: "12-15", rest: "60s", videoUrl: "", note: "" }] },
@@ -47,7 +58,7 @@ const DEFAULT_MEALS = [
   { name: "Dinner", time: "8:00 PM", items: [{ food: "Eggs", amount: "4 whole", protein: 24, carbs: 2, fats: 20, fiber: 0, cal: 280 }, { food: "Sweet Potato", amount: "200g", protein: 3, carbs: 40, fats: 0, fiber: 6, cal: 172 }] },
 ];
 
-// ─── CSS + ANIMATIONS ─────────────────────────────────────────────────────────
+// ─── CSS ──────────────────────────────────────────────────────────────────────
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=DM+Sans:wght@400;500;600&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
@@ -61,11 +72,6 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
   --r:12px;--r2:18px;--sh:0 4px 24px rgba(0,0,0,.4);--sh2:0 8px 48px rgba(0,0,0,.6);
 }
 
-/* ════════════════════════════════════════════
-   KEYFRAME ANIMATIONS
-════════════════════════════════════════════ */
-
-/* Splash screen */
 @keyframes splashBg{0%{opacity:0}100%{opacity:1}}
 @keyframes splashLogo{0%{opacity:0;transform:scale(.4) rotate(-10deg)}60%{transform:scale(1.1) rotate(2deg)}100%{opacity:1;transform:scale(1) rotate(0deg)}}
 @keyframes splashText{0%{opacity:0;transform:translateY(30px)}100%{opacity:1;transform:translateY(0)}}
@@ -73,8 +79,6 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 @keyframes splashBar{0%{width:0}100%{width:100%}}
 @keyframes splashFadeOut{0%{opacity:1;transform:scale(1)}100%{opacity:0;transform:scale(1.04)}}
 @keyframes splashTagline{0%{opacity:0;letter-spacing:.3em}100%{opacity:.7;letter-spacing:.15em}}
-
-/* General animations */
 @keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
 @keyframes fadeDown{from{opacity:0;transform:translateY(-18px)}to{opacity:1;transform:none}}
 @keyframes slideRight{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:none}}
@@ -86,19 +90,14 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 @keyframes glowPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 8px rgba(34,197,94,0)}}
 @keyframes ringPulse{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.5),0 0 0 0 rgba(34,197,94,.3)}50%{box-shadow:0 0 0 5px rgba(34,197,94,0),0 0 0 10px rgba(34,197,94,0)}}
 @keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
-@keyframes progressFill{from{width:0}to{width:var(--target-width,100%)}}
 @keyframes sp{to{transform:rotate(360deg)}}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
-@keyframes stagger1{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
-@keyframes rotateHover{from{transform:rotate(0deg)}to{transform:rotate(90deg)}}
 @keyframes countUp{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
 @keyframes inputGlow{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}50%{box-shadow:0 0 0 4px rgba(34,197,94,.2)}}
 @keyframes cardEntrance{from{opacity:0;transform:translateY(24px) scale(.97)}to{opacity:1;transform:none}}
 @keyframes sp2{to{transform:rotate(360deg)}}
+@keyframes dayPop{0%{opacity:0;transform:scale(.9) translateY(10px)}100%{opacity:1;transform:scale(1) translateY(0)}}
 
-/* ════════════════════════════════════════════
-   SPLASH SCREEN
-════════════════════════════════════════════ */
 .splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 40% 30%,rgba(34,197,94,.12) 0%,transparent 55%),radial-gradient(ellipse at 70% 70%,rgba(167,139,250,.1) 0%,transparent 55%),#080d1a;animation:splashBg .4s ease forwards}
 .splash.exit{animation:splashFadeOut .5s ease forwards;pointer-events:none}
 .splash-logo{width:80px;height:80px;border-radius:22px;background:linear-gradient(135deg,#22c55e,#16a34a);display:flex;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;font-weight:900;font-size:26px;color:#fff;margin-bottom:24px;box-shadow:0 16px 48px rgba(34,197,94,.4),0 0 0 0 rgba(34,197,94,.3);animation:splashLogo .7s cubic-bezier(.34,1.56,.64,1) forwards,glowPulse 2s ease 1s infinite}
@@ -112,9 +111,6 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .splash-dot:nth-child(2){animation-delay:.2s;background:var(--purple)}
 .splash-dot:nth-child(3){animation-delay:.4s;background:var(--blue)}
 
-/* ════════════════════════════════════════════
-   NAV
-════════════════════════════════════════════ */
 .nav{background:rgba(8,13,26,.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 20px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;animation:fadeDown .5s ease forwards}
 .nav-logo{display:flex;align-items:center;gap:9px;cursor:pointer;border:none;background:none}
 .nav-icon{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#22c55e,#16a34a);display:flex;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;font-weight:900;font-size:11px;color:#fff;letter-spacing:-.5px;transition:transform .2s,box-shadow .2s;animation:ringPulse 3s ease 2s infinite}
@@ -133,9 +129,6 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .signout{padding:5px 12px;border-radius:8px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:12px;font-weight:500;color:var(--muted);transition:all .15s}
 .signout:hover{border-color:var(--red);color:var(--red);transform:translateY(-1px)}
 
-/* ════════════════════════════════════════════
-   LAYOUT & CARDS
-════════════════════════════════════════════ */
 .page{max-width:960px;margin:0 auto;padding:24px 16px 48px;animation:fadeUp .4s ease forwards}
 .card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:18px;box-shadow:var(--sh);transition:transform .2s,box-shadow .2s,border-color .2s;animation:cardEntrance .4s ease forwards}
 .card:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.5);border-color:var(--border2)}
@@ -145,23 +138,17 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .ga{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
 .fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-
-/* STAGGERED CARDS */
 .stagger-1{animation:cardEntrance .4s ease .05s both}
 .stagger-2{animation:cardEntrance .4s ease .1s both}
 .stagger-3{animation:cardEntrance .4s ease .15s both}
 .stagger-4{animation:cardEntrance .4s ease .2s both}
 .stagger-5{animation:cardEntrance .4s ease .25s both}
 .stagger-6{animation:cardEntrance .4s ease .3s both}
-
-/* MC METRIC CARDS */
 .mc{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:16px;transition:transform .18s,box-shadow .18s,border-color .2s;animation:bounceIn .5s ease both}
 .mc:hover{transform:translateY(-3px) scale(1.02);box-shadow:0 8px 24px rgba(0,0,0,.4);border-color:var(--border2)}
 .mc.flash{animation:flashBorder 2.5s ease forwards}
 .mc-val{font-family:'Outfit',sans-serif;font-size:28px;font-weight:800;line-height:1;animation:countUp .5s ease forwards}
 .mc-label{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:5px}
-
-/* BUTTONS */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:var(--r);border:none;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;transition:all .18s;white-space:nowrap;position:relative;overflow:hidden}
 .btn::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.15) 50%,transparent 60%);background-size:200% auto;opacity:0;transition:opacity .3s}
 .btn:hover::after{opacity:1;animation:shimmer .6s ease}
@@ -175,8 +162,6 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .btn-d:hover{background:rgba(248,113,113,.2);transform:translateY(-1px)}
 .btn-sm{padding:5px 10px;font-size:12px}
 .btn-xs{padding:3px 8px;font-size:11px}
-
-/* FORMS */
 .fld{margin-bottom:12px}
 .fl{display:block;font-size:11px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px}
 .fi{width:100%;padding:10px 14px;background:var(--s2);border:1.5px solid var(--border);border-radius:9px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border .18s,box-shadow .18s}
@@ -192,20 +177,14 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .num-btn{width:38px;height:42px;background:var(--s3);border:none;cursor:pointer;color:var(--text);font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
 .num-btn:hover{background:var(--green);color:#fff;transform:scale(1.1)}
 .num-btn:active{transform:scale(.95)}
-
-/* TABS */
 .tab-bar{display:flex;gap:3px;background:var(--s2);border-radius:10px;padding:3px;margin-bottom:18px;border:1px solid var(--border);flex-wrap:wrap;animation:fadeDown .35s ease forwards}
 .tab-item{flex:1;padding:7px 6px;border-radius:8px;border:none;background:transparent;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;color:var(--muted);transition:all .18s;min-width:70px;text-align:center;position:relative}
 .tab-item:hover{color:var(--text);background:rgba(255,255,255,.05)}
 .tab-item.active{background:var(--s1);color:var(--text);box-shadow:0 1px 6px rgba(0,0,0,.3);animation:scaleIn .2s ease forwards}
-
-/* MISC */
 .sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .sh-title{font-family:'Outfit',sans-serif;font-weight:700;font-size:16px;animation:slideRight .4s ease forwards}
 .sh-link{font-size:12px;font-weight:600;color:var(--green);background:none;border:none;cursor:pointer;transition:all .15s}
 .sh-link:hover{color:#86efac;transform:translateX(2px)}
-
-/* MODALS */
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;animation:splashBg .2s ease forwards}
 .modal{background:var(--s1);border:1px solid var(--border2);border-radius:var(--r2);width:100%;max-width:640px;max-height:92vh;overflow-y:auto;box-shadow:var(--sh2);animation:bounceIn .35s cubic-bezier(.34,1.56,.64,1) forwards}
 .modal-lg{max-width:900px}
@@ -215,21 +194,13 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .mb2{padding:18px 22px 22px}
 .xbtn{width:28px;height:28px;border-radius:7px;background:var(--s2);border:1px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;flex-shrink:0;transition:all .2s}
 .xbtn:hover{color:var(--red);transform:rotate(90deg);background:rgba(248,113,113,.1)}
-
-/* TABLES */
 .tbl{width:100%;border-collapse:collapse}
 .tbl th{text-align:left;padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);border-bottom:1px solid var(--border)}
 .tbl td{padding:11px 12px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle;transition:background .15s}
 .tbl tr:last-child td{border-bottom:none}
 .tbl tr{animation:slideRight .35s ease both}
-.tbl tr:nth-child(1){animation-delay:.03s}
-.tbl tr:nth-child(2){animation-delay:.06s}
-.tbl tr:nth-child(3){animation-delay:.09s}
-.tbl tr:nth-child(4){animation-delay:.12s}
-.tbl tr:nth-child(5){animation-delay:.15s}
+.tbl tr:nth-child(1){animation-delay:.03s}.tbl tr:nth-child(2){animation-delay:.06s}.tbl tr:nth-child(3){animation-delay:.09s}.tbl tr:nth-child(4){animation-delay:.12s}.tbl tr:nth-child(5){animation-delay:.15s}
 .tbl tr:hover td{background:rgba(255,255,255,.03)}
-
-/* BADGES */
 .bdg{display:inline-flex;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:700;transition:transform .15s}
 .bdg:hover{transform:scale(1.05)}
 .bdg-g{background:var(--green-bg);color:var(--green);border:1px solid var(--green-b)}
@@ -237,27 +208,19 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .bdg-o{background:rgba(251,146,60,.1);color:var(--orange);border:1px solid rgba(251,146,60,.25)}
 .bdg-r{background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.2)}
 .bdg-b{background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.25)}
-
-/* AVATAR */
 .av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;font-weight:700;flex-shrink:0}
 .av-sm{width:32px;height:32px;font-size:11px}
 .av-md{width:38px;height:38px;font-size:13px}
 .av-g{background:var(--green-bg);color:var(--green);border:1.5px solid var(--green-b);transition:transform .2s,box-shadow .2s}
 .av-g:hover{transform:scale(1.08);box-shadow:0 0 0 4px rgba(34,197,94,.2)}
-
-/* ALERTS */
 .alert{padding:11px 14px;border-radius:10px;font-size:12px;line-height:1.5;margin-bottom:14px;animation:slideRight .3s ease forwards}
 .alert-w{background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);color:#fcd34d}
 .alert-g{background:var(--green-bg);border:1px solid var(--green-b);color:#86efac}
 .alert-e{background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);color:var(--red)}
 .alert-b{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);color:#93c5fd}
-
-/* TOAST */
 .toast{position:fixed;bottom:22px;right:22px;padding:11px 16px;border-radius:10px;font-size:13px;font-weight:500;z-index:9999;box-shadow:var(--sh2);animation:bounceIn .35s cubic-bezier(.34,1.56,.64,1);max-width:320px;pointer-events:none}
 .toast-s{background:#166534;border:1px solid #22c55e55;color:#bbf7d0}
 .toast-e{background:#7f1d1d;border:1px solid #f8717155;color:#fecaca}
-
-/* AUTH */
 .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(ellipse at 30% 20%,rgba(34,197,94,.06) 0%,transparent 60%),radial-gradient(ellipse at 70% 80%,rgba(167,139,250,.06) 0%,transparent 60%),var(--bg)}
 .auth-card{background:var(--s1);border:1px solid var(--border2);border-radius:22px;padding:36px;width:100%;max-width:400px;box-shadow:var(--sh2);animation:bounceIn .6s cubic-bezier(.34,1.56,.64,1) forwards}
 .auth-logo{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#22c55e,#16a34a);display:flex;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;font-weight:900;font-size:17px;color:#fff;margin:0 auto 14px;box-shadow:0 8px 24px rgba(34,197,94,.3);animation:float 3s ease infinite}
@@ -272,34 +235,24 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .auth-switch{text-align:center;margin-top:16px;font-size:12px;color:var(--muted)}
 .auth-switch button{background:none;border:none;cursor:pointer;color:var(--green);font-size:12px;font-weight:600;transition:color .15s}
 .auth-switch button:hover{color:#86efac}
-
-/* LIVE / PHASE */
 .live{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--green)}
 .dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse 1.4s ease infinite}
 .phase{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:20px;font-size:12px;font-weight:600;background:var(--green-bg);color:var(--green);border:1px solid var(--green-b);animation:glowPulse 3s ease infinite}
 .msg-b{background:var(--s2);border:1px solid var(--border);border-radius:12px;padding:13px 15px;font-size:13px;line-height:1.65;color:var(--muted2);white-space:pre-wrap;transition:all .2s}
 .msg-b.has{background:var(--green-bg);border-color:var(--green-b);color:var(--text);animation:glowPulse 3s ease 1s infinite}
 .nbadge{display:inline-flex;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:var(--green-bg);color:var(--green);border:1px solid var(--green-b);margin-left:8px;animation:bounceIn .4s ease forwards}
-
-/* SPINNER */
 .spin-wrap{display:flex;align-items:center;justify-content:center;min-height:300px;gap:10px;color:var(--muted);font-size:13px}
 .spinner{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--green);animation:sp .7s linear infinite}
 .spinner-lg{width:40px;height:40px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--green);animation:sp2 .8s linear infinite}
-
-/* EMPTY */
 .empty{text-align:center;padding:40px 24px;color:var(--muted)}
 .empty-icon{font-size:44px;margin-bottom:12px;display:block;animation:float 3s ease infinite}
 .empty-title{font-family:'Outfit',sans-serif;font-weight:700;font-size:17px;color:var(--text);margin-bottom:8px}
 .empty-desc{font-size:13px;margin-bottom:20px}
-
-/* WORKOUT CARDS */
 .wk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .wk-card{border-radius:var(--r);padding:14px 8px;text-align:center;background:var(--s1);border:1px solid var(--border);cursor:pointer;transition:all .2s;animation:cardEntrance .4s ease both}
 .wk-card:hover{transform:translateY(-4px) scale(1.03);border-color:var(--border2);box-shadow:0 8px 24px rgba(0,0,0,.4)}
 .wk-card:active{transform:translateY(-1px) scale(.99)}
 .wk-card.rest{opacity:.45;cursor:default}.wk-card.rest:hover{transform:none;box-shadow:none}
-
-/* MEAL CARDS */
 .meal-card{background:var(--s2);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden;transition:border-color .2s,box-shadow .2s;animation:fadeUp .35s ease both}
 .meal-card:hover{border-color:var(--border2);box-shadow:var(--sh)}
 .meal-head{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);background:var(--s3)}
@@ -308,24 +261,14 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .food-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;transition:background .15s;animation:slideRight .3s ease both}
 .food-row:hover{background:rgba(255,255,255,.02);padding-left:4px}
 .food-row:last-child{border-bottom:none}
-
-/* EXERCISE ROWS */
 .ex-row{display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid var(--border);animation:slideRight .35s ease both}
-.ex-row:nth-child(1){animation-delay:.05s}
-.ex-row:nth-child(2){animation-delay:.1s}
-.ex-row:nth-child(3){animation-delay:.15s}
-.ex-row:nth-child(4){animation-delay:.2s}
-.ex-row:nth-child(5){animation-delay:.25s}
+.ex-row:nth-child(1){animation-delay:.05s}.ex-row:nth-child(2){animation-delay:.1s}.ex-row:nth-child(3){animation-delay:.15s}.ex-row:nth-child(4){animation-delay:.2s}.ex-row:nth-child(5){animation-delay:.25s}
 .ex-row:last-child{border-bottom:none}
 .ex-num{width:26px;height:26px;border-radius:6px;background:var(--s2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--muted);flex-shrink:0;margin-top:2px;transition:all .2s}
 .ex-row:hover .ex-num{background:var(--green-bg);color:var(--green)}
-
-/* CLIENT CARDS */
 .cl-card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:16px;cursor:pointer;transition:all .22s;animation:cardEntrance .45s ease both}
 .cl-card:hover{border-color:var(--green-b);transform:translateY(-3px);box-shadow:0 8px 28px rgba(0,0,0,.4),0 0 0 1px var(--green-b)}
 .sec-lbl{font-family:'Outfit',sans-serif;font-weight:700;font-size:12px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;margin-top:4px}
-
-/* PHOTOS */
 .photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
 .photo-item{border-radius:10px;overflow:hidden;aspect-ratio:3/4;position:relative;cursor:pointer;transition:transform .2s,box-shadow .2s;animation:scaleIn .35s ease both}
 .photo-item:hover{transform:scale(1.03);box-shadow:0 8px 24px rgba(0,0,0,.5)}
@@ -335,8 +278,6 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .photo-del{position:absolute;top:6px;right:6px;background:rgba(248,113,113,.85);color:#fff;border:none;border-radius:6px;padding:3px 7px;font-size:10px;font-weight:700;cursor:pointer;display:none;transition:all .15s}
 .photo-item:hover .photo-del{display:block}
 .photo-del:hover{background:var(--red);transform:scale(1.05)}
-
-/* COMPARISON */
 .cmp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}
 .cmp-card{background:var(--s2);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:transform .2s,border-color .2s;animation:cardEntrance .4s ease both}
 .cmp-card:hover{transform:translateY(-2px);border-color:var(--border2)}
@@ -344,16 +285,10 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .cmp-body{padding:12px 14px}
 .cmp-stat{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px}
 .cmp-stat:last-child{border-bottom:none}
-
-/* UPLOAD */
 .upload-area{border:2px dashed var(--border2);border-radius:12px;padding:24px;text-align:center;cursor:pointer;background:var(--s2);transition:all .2s;display:block}
 .upload-area:hover{border-color:var(--green);background:var(--green-bg);transform:scale(1.01)}
 .video-badge{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.7);color:#fff;border-radius:6px;padding:2px 6px;font-size:10px;font-weight:700}
-
-/* NOTE BOX */
 .note-box{background:rgba(251,191,36,.06);border:1px solid rgba(251,191,36,.2);border-radius:8px;padding:9px 12px;font-size:12px;color:#fcd34d;line-height:1.55;margin-top:6px;white-space:pre-wrap;animation:slideRight .3s ease forwards}
-
-/* SOURCES */
 .sources-mini{background:var(--s3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px;animation:fadeUp .35s ease forwards}
 .sources-mini-title{font-size:11px;font-weight:700;color:var(--muted2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
 .sources-mini-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
@@ -365,12 +300,8 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .sources-table th{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:5px 8px;border-bottom:1px solid var(--border);text-align:left}
 .sources-table td{font-size:12px;padding:5px 8px;border-bottom:1px solid var(--border)}
 .sources-table tr:last-child td{border-bottom:none}
-
-/* PROGRESS BAR */
 .prog-bar{height:4px;border-radius:2px;background:var(--border);overflow:hidden;margin-top:6px}
 .prog-fill{height:100%;border-radius:2px;transition:width .8s cubic-bezier(.4,0,.2,1)}
-
-/* SLIDER */
 .slider-wrap{margin-bottom:18px;animation:fadeUp .3s ease both}
 .slider-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 .slider-label{font-size:13px;font-weight:600;color:var(--text)}
@@ -381,48 +312,36 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:22px;height:22px;border-radius:50%;background:var(--green);cursor:pointer;box-shadow:0 0 0 3px rgba(34,197,94,.25);transition:transform .15s,box-shadow .15s}
 .slider::-webkit-slider-thumb:hover{transform:scale(1.2);box-shadow:0 0 0 6px rgba(34,197,94,.2)}
 .slider::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--green);cursor:pointer;border:none;box-shadow:0 0 0 3px rgba(34,197,94,.25)}
-
-/* SECTION HEADER */
 .section-hdr{font-family:'Outfit',sans-serif;font-weight:700;font-size:12px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px;animation:slideRight .3s ease forwards}
-
-/* AUTOSAVE */
 .autosave{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--green);font-weight:600;opacity:0;transition:opacity .3s}
 .autosave.show{opacity:1;animation:bounceIn .4s ease forwards}
-
-/* DAILY CHECK-IN CARD */
 .checkin-card-today{background:var(--green-bg);border:1px solid var(--green-b);border-radius:var(--r);padding:16px;cursor:pointer;transition:all .2s;animation:glowPulse 3s ease infinite}
 .checkin-card-today:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(34,197,94,.2)}
+
+/* ── DAY CARD IN WORKOUT EDITOR ── */
+.day-editor-card{border-radius:12px;padding:16px;margin-bottom:14px;border:2px solid;transition:box-shadow .2s,transform .2s;animation:dayPop .4s cubic-bezier(.34,1.56,.64,1) both}
+.day-editor-card:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.4)}
+.day-editor-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.day-number-badge{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;font-weight:900;font-size:12px;flex-shrink:0;letter-spacing:.05em}
+.day-label-pill{padding:4px 12px;border-radius:20px;font-family:'Outfit',sans-serif;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.08em;border:1.5px solid}
 
 @media(max-width:700px){.g4{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr}.fg{grid-template-columns:1fr}.nav-tabs{display:none}.wk-grid{grid-template-columns:repeat(3,1fr)}}
 `;
 
-// ─── SPLASH SCREEN COMPONENT ──────────────────────────────────────────────────
+// ─── SPLASH ───────────────────────────────────────────────────────────────────
 function SplashScreen({ onDone }) {
   const [exiting, setExiting] = useState(false);
-
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setExiting(true);
-      setTimeout(onDone, 500);
-    }, 2800);
+    const timer = setTimeout(() => { setExiting(true); setTimeout(onDone, 500); }, 2800);
     return () => clearTimeout(timer);
   }, []);
-
   return (
     <div className={`splash ${exiting ? "exit" : ""}`}>
       <div className="splash-logo">FwA</div>
-      <div className="splash-title">
-        Fit with <span>Ankit</span>
-      </div>
+      <div className="splash-title">Fit with <span>Ankit</span></div>
       <div className="splash-tagline">Your transformation starts here</div>
-      <div className="splash-bar-wrap">
-        <div className="splash-bar" />
-      </div>
-      <div className="splash-dots">
-        <div className="splash-dot" />
-        <div className="splash-dot" />
-        <div className="splash-dot" />
-      </div>
+      <div className="splash-bar-wrap"><div className="splash-bar" /></div>
+      <div className="splash-dots"><div className="splash-dot" /><div className="splash-dot" /><div className="splash-dot" /></div>
     </div>
   );
 }
@@ -440,9 +359,7 @@ function MC({ label, value, color, suffix = "", flash = false }) {
   useEffect(() => { if (flash && !prev.current) setK(x => x + 1); prev.current = flash; }, [flash]);
   return (
     <div key={k} className={flash ? "mc flash" : "mc"}>
-      {value != null
-        ? <div className="mc-val" style={{ color }}>{value}<span style={{ fontSize: 13, fontWeight: 500 }}>{suffix}</span></div>
-        : <div style={{ width: 28, height: 3, background: color + "44", borderRadius: 2, margin: "8px 0 4px" }} />}
+      {value != null ? <div className="mc-val" style={{ color }}>{value}<span style={{ fontSize: 13, fontWeight: 500 }}>{suffix}</span></div> : <div style={{ width: 28, height: 3, background: color + "44", borderRadius: 2, margin: "8px 0 4px" }} />}
       <div className="mc-label">{label}</div>
     </div>
   );
@@ -459,10 +376,7 @@ function NumInput({ value, onChange, color }) {
 }
 
 function MealTotals({ items }) {
-  const t = items.reduce((a, i) => ({
-    protein: a.protein + (i.protein || 0), carbs: a.carbs + (i.carbs || 0),
-    fats: a.fats + (i.fats || 0), fiber: a.fiber + (i.fiber || 0), cal: a.cal + (i.cal || 0),
-  }), { protein: 0, carbs: 0, fats: 0, fiber: 0, cal: 0 });
+  const t = items.reduce((a, i) => ({ protein: a.protein + (i.protein || 0), carbs: a.carbs + (i.carbs || 0), fats: a.fats + (i.fats || 0), fiber: a.fiber + (i.fiber || 0), cal: a.cal + (i.cal || 0) }), { protein: 0, carbs: 0, fats: 0, fiber: 0, cal: 0 });
   return (
     <div className="meal-total">
       <span style={{ fontSize: 11, fontWeight: 700, color: "var(--muted2)", textTransform: "uppercase" }}>Meal Total:</span>
@@ -478,52 +392,28 @@ function MealTotals({ items }) {
 function SliderField({ label, value, onChange, min = 1, max = 10, color = "var(--green)" }) {
   return (
     <div className="slider-wrap">
-      <div className="slider-header">
-        <span className="slider-label">{label}</span>
-        <span className="slider-val" style={{ color }}>{value}</span>
-      </div>
-      <input type="range" className="slider" min={min} max={max} value={value}
-        onChange={e => onChange(parseInt(e.target.value))}
-        style={{ background: `linear-gradient(to right, ${color} 0%, ${color} ${((value - min) / (max - min)) * 100}%, var(--s3) ${((value - min) / (max - min)) * 100}%, var(--s3) 100%)` }}
-      />
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted)", marginTop: 3 }}>
-        <span>{min} Low</span><span>{max} High</span>
-      </div>
+      <div className="slider-header"><span className="slider-label">{label}</span><span className="slider-val" style={{ color }}>{value}</span></div>
+      <input type="range" className="slider" min={min} max={max} value={value} onChange={e => onChange(parseInt(e.target.value))}
+        style={{ background: `linear-gradient(to right, ${color} 0%, ${color} ${((value - min) / (max - min)) * 100}%, var(--s3) ${((value - min) / (max - min)) * 100}%, var(--s3) 100%)` }} />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted)", marginTop: 3 }}><span>{min} Low</span><span>{max} High</span></div>
     </div>
   );
 }
 
-// ─── SOURCES COMPONENTS ───────────────────────────────────────────────────────
+// ─── SOURCES ──────────────────────────────────────────────────────────────────
 function SourcesTablePanel({ sources }) {
   if (!sources) return null;
   const cats = [{ key: "protein", label: "Protein", color: "var(--purple)" }, { key: "carbs", label: "Carbs", color: "var(--orange)" }, { key: "fats", label: "Fats", color: "var(--red)" }];
   const hasAny = cats.some(c => (sources[c.key] || []).some(v => v));
-  if (!hasAny) return (
-    <div className="sources-table-wrap">
-      <div className="sources-table-title">Client Food Sources</div>
-      <div style={{ fontSize: 12, color: "var(--muted)" }}>Client has not filled food sources yet.</div>
-    </div>
-  );
+  if (!hasAny) return <div className="sources-table-wrap"><div className="sources-table-title">Client Food Sources</div><div style={{ fontSize: 12, color: "var(--muted)" }}>Client has not filled food sources yet.</div></div>;
   const rows = [];
-  for (let i = 0; i < 5; i++) {
-    const p = (sources.protein || [])[i] || ""; const c = (sources.carbs || [])[i] || ""; const f = (sources.fats || [])[i] || "";
-    if (p || c || f) rows.push({ i, p, c, f });
-  }
+  for (let i = 0; i < 5; i++) { const p = (sources.protein || [])[i] || ""; const c = (sources.carbs || [])[i] || ""; const f = (sources.fats || [])[i] || ""; if (p || c || f) rows.push({ i, p, c, f }); }
   return (
     <div className="sources-table-wrap">
       <div className="sources-table-title">Client Food Sources <span style={{ fontWeight: 400, color: "var(--muted)", textTransform: "none", letterSpacing: 0 }}>(use when building meal plan)</span></div>
       <table className="sources-table">
         <thead><tr><th style={{ color: "var(--muted2)" }}>#</th><th style={{ color: "var(--purple)" }}>Protein</th><th style={{ color: "var(--orange)" }}>Carbs</th><th style={{ color: "var(--red)" }}>Fats</th></tr></thead>
-        <tbody>
-          {rows.map(({ i, p, c, f }) => (
-            <tr key={i}>
-              <td style={{ color: "var(--muted)", fontSize: 10, fontWeight: 700 }}>{i + 1}</td>
-              <td style={{ color: p ? "var(--purple)" : "var(--muted)", fontWeight: p ? 600 : 400 }}>{p || "-"}</td>
-              <td style={{ color: c ? "var(--orange)" : "var(--muted)", fontWeight: c ? 600 : 400 }}>{c || "-"}</td>
-              <td style={{ color: f ? "var(--red)" : "var(--muted)", fontWeight: f ? 600 : 400 }}>{f || "-"}</td>
-            </tr>
-          ))}
-        </tbody>
+        <tbody>{rows.map(({ i, p, c, f }) => (<tr key={i}><td style={{ color: "var(--muted)", fontSize: 10, fontWeight: 700 }}>{i + 1}</td><td style={{ color: p ? "var(--purple)" : "var(--muted)", fontWeight: p ? 600 : 400 }}>{p || "-"}</td><td style={{ color: c ? "var(--orange)" : "var(--muted)", fontWeight: c ? 600 : 400 }}>{c || "-"}</td><td style={{ color: f ? "var(--red)" : "var(--muted)", fontWeight: f ? 600 : 400 }}>{f || "-"}</td></tr>))}</tbody>
       </table>
     </div>
   );
@@ -531,66 +421,35 @@ function SourcesTablePanel({ sources }) {
 
 function SourcesMiniReadonly({ sources }) {
   if (!sources) return null;
-  const cats = [
-    { key: "protein", label: "Protein Sources", color: "var(--purple)", border: "rgba(167,139,250,.35)" },
-    { key: "carbs", label: "Carb Sources", color: "var(--orange)", border: "rgba(251,146,60,.35)" },
-    { key: "fats", label: "Fat Sources", color: "var(--red)", border: "rgba(248,113,113,.35)" },
-  ];
+  const cats = [{ key: "protein", label: "Protein Sources", color: "var(--purple)", border: "rgba(167,139,250,.35)" }, { key: "carbs", label: "Carb Sources", color: "var(--orange)", border: "rgba(251,146,60,.35)" }, { key: "fats", label: "Fat Sources", color: "var(--red)", border: "rgba(248,113,113,.35)" }];
   const hasAny = cats.some(c => (sources[c.key] || []).some(v => v));
   if (!hasAny) return null;
   return (
     <div className="sources-mini">
       <div className="sources-mini-title">My Food Sources</div>
-      {cats.map(({ key, label, color, border }) => {
-        const items = (sources[key] || []).filter(v => v);
-        if (!items.length) return null;
-        return (
-          <div key={key} style={{ marginBottom: 6 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>{label}</div>
-            <div className="sources-mini-row">
-              {items.map((item, i) => <span key={i} className="sources-mini-tag" style={{ color, borderColor: border, background: color + "12", animationDelay: i * 0.05 + "s" }}>{item}</span>)}
-            </div>
-          </div>
-        );
-      })}
+      {cats.map(({ key, label, color, border }) => { const items = (sources[key] || []).filter(v => v); if (!items.length) return null; return (<div key={key} style={{ marginBottom: 6 }}><div style={{ fontSize: 10, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>{label}</div><div className="sources-mini-row">{items.map((item, i) => <span key={i} className="sources-mini-tag" style={{ color, borderColor: border, background: color + "12" }}>{item}</span>)}</div></div>); })}
     </div>
   );
 }
 
-// ─── DAILY CHECK-IN SECTION ───────────────────────────────────────────────────
+// ─── DAILY CHECK-IN ───────────────────────────────────────────────────────────
 function DailyCheckinSection({ uid, d, toast }) {
   const today = new Date().toLocaleDateString("en-IN");
   const existingCheckin = (d.dailyCheckins || []).find(c => c.date === today);
-  const [form, setForm] = useState({
-    stressLevel: existingCheckin?.stressLevel || 5,
-    hungerCravings: existingCheckin?.hungerCravings || 5,
-    trainingPerformance: existingCheckin?.trainingPerformance || 5,
-    nutritionAdherence: existingCheckin?.nutritionAdherence || 5,
-    sleepQuality: existingCheckin?.sleepQuality || 5,
-    waterIntake: existingCheckin?.waterIntake || 2,
-    digestion: existingCheckin?.digestion || "",
-    injuries: existingCheckin?.injuries || "None",
-    period: existingCheckin?.period || "N/A",
-    noteToCoach: existingCheckin?.noteToCoach || "",
-  });
+  const [form, setForm] = useState({ stressLevel: existingCheckin?.stressLevel || 5, hungerCravings: existingCheckin?.hungerCravings || 5, trainingPerformance: existingCheckin?.trainingPerformance || 5, nutritionAdherence: existingCheckin?.nutritionAdherence || 5, sleepQuality: existingCheckin?.sleepQuality || 5, waterIntake: existingCheckin?.waterIntake || 2, digestion: existingCheckin?.digestion || "", injuries: existingCheckin?.injuries || "None", period: existingCheckin?.period || "N/A", noteToCoach: existingCheckin?.noteToCoach || "" });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(!!existingCheckin);
 
   const submit = async () => {
     setSaving(true);
     const checkin = { ...form, date: today, time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }), timestamp: new Date().toISOString() };
-    const existing = d.dailyCheckins || [];
-    await updateDoc(doc(db, "clients", uid), { dailyCheckins: [...existing.filter(c => c.date !== today), checkin] });
-    toast("Daily check-in submitted!", "success");
-    setSaved(true); setSaving(false);
+    await updateDoc(doc(db, "clients", uid), { dailyCheckins: [...(d.dailyCheckins || []).filter(c => c.date !== today), checkin] });
+    toast("Daily check-in submitted!", "success"); setSaved(true); setSaving(false);
   };
 
   return (
     <div className="card" style={{ marginBottom: 18 }}>
-      <div className="card-title">
-        Daily Check-in — {today}
-        {saved && <span className="bdg bdg-g">Submitted today</span>}
-      </div>
+      <div className="card-title">Daily Check-in - {today}{saved && <span className="bdg bdg-g">Submitted today</span>}</div>
       <div className="section-hdr">Performance & Wellbeing</div>
       <SliderField label="Stress Level" value={form.stressLevel} onChange={v => setForm(p => ({ ...p, stressLevel: v }))} color="#f87171" />
       <SliderField label="Hunger / Cravings" value={form.hungerCravings} onChange={v => setForm(p => ({ ...p, hungerCravings: v }))} color="#fb923c" />
@@ -599,43 +458,23 @@ function DailyCheckinSection({ uid, d, toast }) {
       <SliderField label="Sleep Quality" value={form.sleepQuality} onChange={v => setForm(p => ({ ...p, sleepQuality: v }))} color="#38bdf8" />
       <div className="slider-wrap">
         <div className="slider-header"><span className="slider-label">Water Intake</span><span className="slider-val" style={{ color: "#38bdf8" }}>{form.waterIntake}L</span></div>
-        <input type="range" className="slider" min={0} max={6} step={0.5} value={form.waterIntake}
-          onChange={e => setForm(p => ({ ...p, waterIntake: parseFloat(e.target.value) }))}
-          style={{ background: `linear-gradient(to right, #38bdf8 0%, #38bdf8 ${(form.waterIntake / 6) * 100}%, var(--s3) ${(form.waterIntake / 6) * 100}%, var(--s3) 100%)` }}
-        />
+        <input type="range" className="slider" min={0} max={6} step={0.5} value={form.waterIntake} onChange={e => setForm(p => ({ ...p, waterIntake: parseFloat(e.target.value) }))} style={{ background: `linear-gradient(to right, #38bdf8 0%, #38bdf8 ${(form.waterIntake / 6) * 100}%, var(--s3) ${(form.waterIntake / 6) * 100}%, var(--s3) 100%)` }} />
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted)", marginTop: 3 }}><span>0L</span><span>6L</span></div>
       </div>
       <div className="section-hdr" style={{ marginTop: 4 }}>Wellbeing</div>
       <div className="fg" style={{ marginBottom: 12 }}>
-        <div className="fld">
-          <div className="fl">Digestion</div>
-          <select className="fsel" value={form.digestion} onChange={e => setForm(p => ({ ...p, digestion: e.target.value }))}>
-            <option value="">Select...</option><option>Normal</option><option>Bloating</option><option>Constipation</option><option>Loose stools</option><option>Reflux / acidity</option><option>Other</option>
-          </select>
-        </div>
-        <div className="fld">
-          <div className="fl">Any injuries / pain?</div>
-          <select className="fsel" value={form.injuries} onChange={e => setForm(p => ({ ...p, injuries: e.target.value }))}>
-            <option>None</option><option>Minor soreness (normal)</option><option>Joint pain</option><option>Muscle pull / strain</option><option>Other</option>
-          </select>
-        </div>
+        <div className="fld"><div className="fl">Digestion</div><select className="fsel" value={form.digestion} onChange={e => setForm(p => ({ ...p, digestion: e.target.value }))}><option value="">Select...</option><option>Normal</option><option>Bloating</option><option>Constipation</option><option>Loose stools</option><option>Reflux / acidity</option><option>Other</option></select></div>
+        <div className="fld"><div className="fl">Any injuries / pain?</div><select className="fsel" value={form.injuries} onChange={e => setForm(p => ({ ...p, injuries: e.target.value }))}><option>None</option><option>Minor soreness (normal)</option><option>Joint pain</option><option>Muscle pull / strain</option><option>Other</option></select></div>
       </div>
-      <div className="fld" style={{ marginBottom: 12 }}>
-        <div className="fl">Period (if applicable)</div>
-        <select className="fsel" value={form.period} onChange={e => setForm(p => ({ ...p, period: e.target.value }))}>
-          <option>N/A</option><option>On period</option><option>Pre-period (PMS)</option><option>Post-period</option>
-        </select>
-      </div>
+      <div className="fld" style={{ marginBottom: 12 }}><div className="fl">Period (if applicable)</div><select className="fsel" value={form.period} onChange={e => setForm(p => ({ ...p, period: e.target.value }))}><option>N/A</option><option>On period</option><option>Pre-period (PMS)</option><option>Post-period</option></select></div>
       <div className="section-hdr">Note to Coach</div>
       <div className="fld"><textarea className="fta" placeholder="Anything you want your coach to know today..." value={form.noteToCoach} onChange={e => setForm(p => ({ ...p, noteToCoach: e.target.value }))} /></div>
-      <button className="btn btn-p" style={{ width: "100%" }} onClick={submit} disabled={saving}>
-        {saving ? "Submitting..." : saved ? "Update Today's Check-in" : "Submit Daily Check-in"}
-      </button>
+      <button className="btn btn-p" style={{ width: "100%" }} onClick={submit} disabled={saving}>{saving ? "Submitting..." : saved ? "Update Today's Check-in" : "Submit Daily Check-in"}</button>
     </div>
   );
 }
 
-// ─── WORKOUT EDITOR ───────────────────────────────────────────────────────────
+// ─── WORKOUT EDITOR with COLORED DAY BOXES ───────────────────────────────────
 function WorkoutEditor({ plan, onSave, onClose, autoSave }) {
   const [days, setDays] = useState(JSON.parse(JSON.stringify(plan)));
   const [autoSaved, setAutoSaved] = useState(false);
@@ -658,51 +497,87 @@ function WorkoutEditor({ plan, onSave, onClose, autoSave }) {
     <div className="ov" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal modal-lg">
         <div className="mh">
-          <div><div className="mt">Edit Workout Plan</div><div className="ms">Changes auto-save as you type</div></div>
+          <div><div className="mt">Edit Workout Plan</div><div className="ms">Each day has a unique colour — changes auto-save</div></div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span className={`autosave ${autoSaved ? "show" : ""}`}>Saved</span>
             <button className="xbtn" onClick={onClose}>X</button>
           </div>
         </div>
         <div className="mb2">
-          {days.map((day, di) => (
-            <div key={di} style={{ background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 10, padding: 14, marginBottom: 12, animation: "fadeUp .3s ease " + (di * 0.05) + "s both" }}>
-              <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center" }}>
-                <input className="fi" style={{ flex: 1 }} value={day.day} onChange={e => updateDay(di, "day", e.target.value)} placeholder="Day name" />
-                <select className="fsel" style={{ width: 130 }} value={day.type} onChange={e => updateDay(di, "type", e.target.value)}>
-                  {TYPES.map(t => <option key={t}>{t}</option>)}
-                </select>
-                <button className="btn btn-d btn-sm" onClick={() => removeDay(di)}>Remove</button>
+          {days.map((day, di) => {
+            // Assign color by day index, cycling through DAY_COLORS
+            const dc = DAY_COLORS[di % DAY_COLORS.length];
+            return (
+              <div key={di}
+                className="day-editor-card"
+                style={{ background: dc.bg, borderColor: dc.border, animationDelay: di * 0.07 + "s" }}
+              >
+                {/* Day header row */}
+                <div className="day-editor-header">
+                  {/* Colored circle with day number */}
+                  <div className="day-number-badge" style={{ background: dc.accent + "22", color: dc.accent, border: "2px solid " + dc.border }}>
+                    {di + 1}
+                  </div>
+                  {/* Day name input */}
+                  <input className="fi" style={{ flex: 1, borderColor: dc.border, background: "rgba(0,0,0,.2)" }}
+                    value={day.day} onChange={e => updateDay(di, "day", e.target.value)} placeholder="Day name" />
+                  {/* Day label pill showing index */}
+                  <div className="day-label-pill" style={{ color: dc.accent, borderColor: dc.border, background: dc.bg }}>
+                    {dc.label}
+                  </div>
+                  {/* Type select */}
+                  <select className="fsel" style={{ width: 120, borderColor: dc.border, background: "rgba(0,0,0,.2)" }}
+                    value={day.type} onChange={e => updateDay(di, "type", e.target.value)}>
+                    {TYPES.map(t => <option key={t}>{t}</option>)}
+                  </select>
+                  <button className="btn btn-d btn-sm" onClick={() => removeDay(di)}>Remove</button>
+                </div>
+
+                {/* Exercise type badge */}
+                <div style={{ marginBottom: 10 }}>
+                  <span style={{ display: "inline-flex", padding: "3px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: dc.accent + "22", color: dc.accent, border: "1px solid " + dc.border, letterSpacing: ".05em" }}>
+                    {day.type === "Rest" ? "REST DAY" : day.type.toUpperCase() + " DAY"} — {day.exercises.length} exercises
+                  </span>
+                </div>
+
+                {day.type !== "Rest" && (
+                  <>
+                    {day.exercises.map((ex, ei) => (
+                      <div key={ei} style={{ background: "rgba(0,0,0,.25)", border: "1px solid " + dc.border, borderRadius: 9, padding: 12, marginBottom: 10, animation: "slideRight .3s ease " + (di * 0.07 + ei * 0.04) + "s both" }}>
+                        {/* Exercise number */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                          <div style={{ width: 24, height: 24, borderRadius: "50%", background: dc.accent + "33", border: "1.5px solid " + dc.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: dc.accent, flexShrink: 0 }}>{ei + 1}</div>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: dc.accent, textTransform: "uppercase", letterSpacing: ".06em" }}>Exercise {ei + 1}</span>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "2fr 55px 80px 65px auto", gap: 6, marginBottom: 8, alignItems: "center" }}>
+                          <div><div className="fl">Name</div><input className="fi" value={ex.name} onChange={e => updateEx(di, ei, "name", e.target.value)} placeholder="Exercise name" style={{ borderColor: dc.border }} /></div>
+                          <div><div className="fl">Sets</div><input className="fi" type="number" value={ex.sets} onChange={e => updateEx(di, ei, "sets", parseInt(e.target.value) || 1)} style={{ borderColor: dc.border }} /></div>
+                          <div><div className="fl">Reps</div><input className="fi" value={ex.reps} onChange={e => updateEx(di, ei, "reps", e.target.value)} placeholder="10-12" style={{ borderColor: dc.border }} /></div>
+                          <div><div className="fl">Rest</div><input className="fi" value={ex.rest} onChange={e => updateEx(di, ei, "rest", e.target.value)} placeholder="60s" style={{ borderColor: dc.border }} /></div>
+                          <div style={{ paddingTop: 18 }}><button className="btn btn-d btn-xs" onClick={() => removeEx(di, ei)}>X</button></div>
+                        </div>
+                        <div style={{ marginBottom: 8 }}>
+                          <div className="fl">Video Demo (YouTube link)</div>
+                          <input className="fi" value={ex.videoUrl || ""} onChange={e => updateEx(di, ei, "videoUrl", e.target.value)} placeholder="https://youtube.com/watch?v=..." style={{ borderColor: dc.border }} />
+                          {ex.videoUrl && <div style={{ marginTop: 5 }}><span className="bdg bdg-b">Video linked</span><button className="btn btn-d btn-xs" style={{ marginLeft: 8 }} onClick={() => updateEx(di, ei, "videoUrl", "")}>Remove</button></div>}
+                        </div>
+                        <div>
+                          <div className="fl" style={{ color: "#fbbf24" }}>Coaching Note (visible to client)</div>
+                          <textarea className="fta" style={{ minHeight: 60, fontSize: 12, borderColor: ex.note ? "rgba(251,191,36,.4)" : dc.border, background: ex.note ? "rgba(251,191,36,.05)" : "rgba(0,0,0,.2)" }}
+                            value={ex.note || ""} onChange={e => updateEx(di, ei, "note", e.target.value)}
+                            placeholder="e.g. Use 30 degree incline. Keep elbows tucked. Controlled negative." />
+                        </div>
+                      </div>
+                    ))}
+                    <button className="btn btn-sm" onClick={() => addEx(di)}
+                      style={{ marginTop: 4, background: dc.accent + "22", color: dc.accent, border: "1px solid " + dc.border, borderRadius: 8 }}>
+                      + Add Exercise
+                    </button>
+                  </>
+                )}
               </div>
-              {day.type !== "Rest" && (
-                <>
-                  {day.exercises.map((ex, ei) => (
-                    <div key={ei} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 9, padding: 12, marginBottom: 10, animation: "slideRight .3s ease " + (ei * 0.04) + "s both" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "2fr 55px 80px 65px auto", gap: 6, marginBottom: 8, alignItems: "center" }}>
-                        <div><div className="fl">Exercise</div><input className="fi" value={ex.name} onChange={e => updateEx(di, ei, "name", e.target.value)} placeholder="Exercise name" /></div>
-                        <div><div className="fl">Sets</div><input className="fi" type="number" value={ex.sets} onChange={e => updateEx(di, ei, "sets", parseInt(e.target.value) || 1)} /></div>
-                        <div><div className="fl">Reps</div><input className="fi" value={ex.reps} onChange={e => updateEx(di, ei, "reps", e.target.value)} placeholder="10-12" /></div>
-                        <div><div className="fl">Rest</div><input className="fi" value={ex.rest} onChange={e => updateEx(di, ei, "rest", e.target.value)} placeholder="60s" /></div>
-                        <div style={{ paddingTop: 18 }}><button className="btn btn-d btn-xs" onClick={() => removeEx(di, ei)}>X</button></div>
-                      </div>
-                      <div style={{ marginBottom: 8 }}>
-                        <div className="fl">Video Demo (YouTube link)</div>
-                        <input className="fi" value={ex.videoUrl || ""} onChange={e => updateEx(di, ei, "videoUrl", e.target.value)} placeholder="https://youtube.com/watch?v=..." />
-                        {ex.videoUrl && <div style={{ marginTop: 5 }}><span className="bdg bdg-b">Video linked</span><button className="btn btn-d btn-xs" style={{ marginLeft: 8 }} onClick={() => updateEx(di, ei, "videoUrl", "")}>Remove</button></div>}
-                      </div>
-                      <div>
-                        <div className="fl" style={{ color: "#fbbf24" }}>Coaching Note (visible to client)</div>
-                        <textarea className="fta" style={{ minHeight: 60, fontSize: 12, borderColor: ex.note ? "rgba(251,191,36,.4)" : undefined, background: ex.note ? "rgba(251,191,36,.05)" : undefined }}
-                          value={ex.note || ""} onChange={e => updateEx(di, ei, "note", e.target.value)}
-                          placeholder="e.g. Use 30 degree incline. Keep elbows tucked. Controlled negative." />
-                      </div>
-                    </div>
-                  ))}
-                  <button className="btn btn-s btn-sm" onClick={() => addEx(di)} style={{ marginTop: 4 }}>+ Add Exercise</button>
-                </>
-              )}
-            </div>
-          ))}
+            );
+          })}
           <button className="btn btn-s" onClick={addDay} style={{ marginBottom: 16 }}>+ Add Day</button>
           <button className="btn btn-s" style={{ width: "100%" }} onClick={onClose}>Done</button>
         </div>
@@ -734,10 +609,7 @@ function MealEditor({ plan, onSave, onClose, clientSources, autoSave }) {
       <div className="modal modal-lg">
         <div className="mh">
           <div><div className="mt">Edit Meal Plan</div><div className="ms">Changes auto-save as you type</div></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span className={`autosave ${autoSaved ? "show" : ""}`}>Saved</span>
-            <button className="xbtn" onClick={onClose}>X</button>
-          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}><span className={`autosave ${autoSaved ? "show" : ""}`}>Saved</span><button className="xbtn" onClick={onClose}>X</button></div>
         </div>
         <div className="mb2">
           <SourcesTablePanel sources={clientSources} />
@@ -786,9 +658,7 @@ function VideoModal({ url, name, onClose }) {
     <div className="ov" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <div className="mh"><div><div className="mt">{name}</div><div className="ms">Exercise demo</div></div><button className="xbtn" onClick={onClose}>X</button></div>
-        <div className="mb2">
-          {isYT ? <iframe width="100%" height="315" src={embedUrl} frameBorder="0" allowFullScreen style={{ borderRadius: 10 }} /> : <video src={url} controls style={{ width: "100%", borderRadius: 10 }} />}
-        </div>
+        <div className="mb2">{isYT ? <iframe width="100%" height="315" src={embedUrl} frameBorder="0" allowFullScreen style={{ borderRadius: 10 }} /> : <video src={url} controls style={{ width: "100%", borderRadius: 10 }} />}</div>
       </div>
     </div>
   );
@@ -849,8 +719,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
       try {
         toast("Uploading " + file.name + "...", "success"); setUploadPct(0);
         const result = await cloudinaryUpload(file, pct => setUploadPct(pct));
-        const currentPhotos = (d.photos || []);
-        await updateDoc(doc(db, "clients", uid), { photos: [...currentPhotos, { url: result.secure_url, publicId: result.public_id, type: isVideo ? "video" : "photo", name: file.name, date: new Date().toLocaleDateString("en-IN"), time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }), timestamp: new Date().toISOString(), sizeMB: sizeMB.toFixed(2) }] });
+        await updateDoc(doc(db, "clients", uid), { photos: [...(d.photos || []), { url: result.secure_url, publicId: result.public_id, type: isVideo ? "video" : "photo", name: file.name, date: new Date().toLocaleDateString("en-IN"), time: new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }), timestamp: new Date().toISOString(), sizeMB: sizeMB.toFixed(2) }] });
         successCount++;
       } catch (err) { toast("Upload failed: " + err.message, "error"); }
     }
@@ -864,7 +733,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
     toast("Removed.", "success");
   };
 
-  if (loading) return <div className="spin-wrap"><div className="spinner-lg" /><span style={{ marginLeft: 12 }}>Loading your plan...</span></div>;
+  if (loading) return <div className="spin-wrap"><div className="spinner-lg" /></div>;
   if (!d) return <div className="spin-wrap">No data. Contact your coach.</div>;
 
   const n = d.nutrition || {}; const meals = d.mealPlan || DEFAULT_MEALS;
@@ -888,15 +757,18 @@ function ClientDash({ uid, tab, setTab, toast }) {
         {flash.workout && <span className="nbadge">Updated by coach</span>}
       </div>
       <div className="wk-grid" style={{ marginBottom: 20 }}>
-        {workout.map((day, i) => (
-          <div key={i} className={day.type === "Rest" ? "wk-card rest" : "wk-card"}
-            style={{ borderTop: "3px solid " + (WCOLOR[day.type] || "#475569"), animationDelay: i * 0.05 + "s" }}
-            onClick={() => day.type !== "Rest" && setWModal(day)}>
-            <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>{day.day.slice(0, 3)}</div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: WCOLOR[day.type] || "#475569" }}>{day.type}</div>
-            {day.type !== "Rest" && <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 3 }}>{day.exercises.length} exercises</div>}
-          </div>
-        ))}
+        {workout.map((day, i) => {
+          const dc = DAY_COLORS[i % DAY_COLORS.length];
+          return (
+            <div key={i} className={day.type === "Rest" ? "wk-card rest" : "wk-card"}
+              style={{ borderTop: "3px solid " + dc.accent, animationDelay: i * 0.05 + "s" }}
+              onClick={() => day.type !== "Rest" && setWModal(day)}>
+              <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: dc.accent, marginBottom: 6, letterSpacing: ".08em" }}>{day.day.slice(0, 3)}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: WCOLOR[day.type] || "#475569" }}>{day.type}</div>
+              {day.type !== "Rest" && <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 3 }}>{day.exercises.length} ex</div>}
+            </div>
+          );
+        })}
       </div>
       {wModal && (
         <div className="ov" onClick={e => e.target === e.currentTarget && setWModal(null)}>
@@ -931,33 +803,27 @@ function ClientDash({ uid, tab, setTab, toast }) {
     const calFromP = totP * 4; const calFromC = totC * 4; const calFromF = totF * 9;
     return (
       <div className="page">
-        <div style={{ marginBottom: 18, animation: "fadeDown .4s ease forwards" }}>
-          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Your Nutrition Plan</div>
-          <div className="live" style={{ marginTop: 7 }}><span className="dot" />Live from coach</div>
-        </div>
+        <div style={{ marginBottom: 18, animation: "fadeDown .4s ease forwards" }}><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Your Nutrition Plan</div><div className="live" style={{ marginTop: 7 }}><span className="dot" />Live from coach</div></div>
         <SourcesMiniReadonly sources={sources} />
         <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, marginBottom: 10, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".07em" }}>Daily Targets</div>
         <div className="g4" style={{ marginBottom: 20 }}>
-          {[["Calories", n.calories, "var(--green)", !!flash.calories],["Protein G", n.protein, "var(--purple)", !!flash.protein],["Carbs G", n.carbs, "var(--orange)", !!flash.carbs],["Fats G", n.fats, "var(--red)", !!flash.fats]].map(([l, v, co, fl], i) => (
+          {[["Calories", n.calories, "var(--green)", !!flash.calories], ["Protein G", n.protein, "var(--purple)", !!flash.protein], ["Carbs G", n.carbs, "var(--orange)", !!flash.carbs], ["Fats G", n.fats, "var(--red)", !!flash.fats]].map(([l, v, co, fl], i) => (
             <div key={l} style={{ animationDelay: i * 0.07 + "s" }}><MC label={l} value={v} color={co} flash={fl} /></div>
           ))}
         </div>
         <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, marginBottom: 10, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".07em" }}>Meal Plan</div>
         {meals.map((meal, mi) => {
           const mp = meal.items.reduce((a, i) => a + (i.protein || 0), 0); const mc2 = meal.items.reduce((a, i) => a + (i.carbs || 0), 0);
-          const mf = meal.items.reduce((a, i) => a + (i.fats || 0), 0); const mfib = meal.items.reduce((a, i) => a + (i.fiber || 0), 0);
-          const mcal = meal.items.reduce((a, i) => a + (i.cal || 0), 0);
+          const mf = meal.items.reduce((a, i) => a + (i.fats || 0), 0); const mfib = meal.items.reduce((a, i) => a + (i.fiber || 0), 0); const mcal = meal.items.reduce((a, i) => a + (i.cal || 0), 0);
           return (
             <div key={mi} className="meal-card" style={{ animationDelay: mi * 0.07 + "s" }}>
               <div className="meal-head"><div><span style={{ fontWeight: 700, fontSize: 14 }}>{meal.name}</span><span style={{ fontSize: 12, color: "var(--muted)", marginLeft: 8 }}>{meal.time}</span></div><span className="bdg bdg-g">{mcal} kcal</span></div>
               <div className="meal-body">
                 {meal.items.map((item, ii) => (
-                  <div key={ii} className="food-row" style={{ animationDelay: (mi * 0.07 + ii * 0.03) + "s" }}>
+                  <div key={ii} className="food-row">
                     <div><span style={{ fontWeight: 600 }}>{item.food}</span><span style={{ color: "var(--muted)", fontSize: 12, marginLeft: 6 }}>{item.amount}</span></div>
                     <div style={{ display: "flex", gap: 8, fontSize: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      <span style={{ color: "var(--purple)" }}>{item.protein}g P</span><span style={{ color: "var(--orange)" }}>{item.carbs}g C</span>
-                      <span style={{ color: "var(--red)" }}>{item.fats}g F</span><span style={{ color: "#34d399" }}>{item.fiber || 0}g Fib</span>
-                      <span style={{ color: "var(--green)", fontWeight: 700 }}>{item.cal} cal</span>
+                      <span style={{ color: "var(--purple)" }}>{item.protein}g P</span><span style={{ color: "var(--orange)" }}>{item.carbs}g C</span><span style={{ color: "var(--red)" }}>{item.fats}g F</span><span style={{ color: "#34d399" }}>{item.fiber || 0}g Fib</span><span style={{ color: "var(--green)", fontWeight: 700 }}>{item.cal} cal</span>
                     </div>
                   </div>
                 ))}
@@ -976,7 +842,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
         <div className="card" style={{ marginBottom: 14 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
             {[["Total Protein", totP + "g", "var(--purple)"], ["Total Carbs", totC + "g", "var(--orange)"], ["Total Fats", totF + "g", "var(--red)"], ["Total Fiber", totFib + "g", "#34d399"], ["Total Calories", totCal + " kcal", "var(--green)"]].map(([l, v, co], i) => (
-              <div key={l} style={{ background: "var(--s2)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--border)", animation: "countUp .4s ease " + (i * 0.08) + "s both", transition: "transform .2s" }}>
+              <div key={l} style={{ background: "var(--s2)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--border)", animation: "countUp .4s ease " + (i * 0.08) + "s both" }}>
                 <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 20, fontWeight: 800, color: co }}>{v}</div>
                 <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", marginTop: 4 }}>{l}</div>
               </div>
@@ -991,10 +857,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
                   <div key={l} style={{ background: "var(--s2)", borderRadius: 10, padding: 12, border: "1px solid var(--border)", textAlign: "center", animation: "bounceIn .5s ease " + (i * 0.1) + "s both" }}>
                     <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 18, fontWeight: 800, color: co }}>{v} kcal</div>
                     <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginTop: 3 }}>{l}</div>
-                    <div style={{ marginTop: 8 }}>
-                      <div className="prog-bar"><div className="prog-fill" style={{ width: pct + "%", background: co }} /></div>
-                      <div style={{ fontSize: 11, color: co, fontWeight: 700, marginTop: 3 }}>{pct}%</div>
-                    </div>
+                    <div style={{ marginTop: 8 }}><div className="prog-bar"><div className="prog-fill" style={{ width: pct + "%", background: co }} /></div><div style={{ fontSize: 11, color: co, fontWeight: 700, marginTop: 3 }}>{pct}%</div></div>
                   </div>
                 );
               })}
@@ -1013,10 +876,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
     };
     return (
       <div className="page">
-        <div style={{ marginBottom: 22, animation: "fadeDown .4s ease forwards" }}>
-          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>My Food Sources</div>
-          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>Your coach uses these to design your meal plan</div>
-        </div>
+        <div style={{ marginBottom: 22, animation: "fadeDown .4s ease forwards" }}><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>My Food Sources</div><div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>Your coach uses these to design your meal plan</div></div>
         <div className="alert alert-b" style={{ marginBottom: 18 }}>Fill in foods easily available to you. Saved automatically when you click outside each box.</div>
         {[["protein", "Top 5 Protein Sources", "var(--purple)", "e.g. Eggs, Chicken, Paneer, Whey, Fish"], ["carbs", "Top 5 Carb Sources", "var(--orange)", "e.g. Rice, Oats, Bread, Sweet Potato, Banana"], ["fats", "Top 5 Fat Sources", "var(--red)", "e.g. Ghee, Nuts, Peanut Butter, Oil, Butter"]].map(([type, label, color, hint], ci) => (
           <div key={type} className="card" style={{ marginBottom: 16, animationDelay: ci * 0.1 + "s" }}>
@@ -1024,7 +884,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
             <div style={{ display: "grid", gap: 8 }}>
               {[0, 1, 2, 3, 4].map(i => (
                 <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, animation: "slideRight .3s ease " + (ci * 0.1 + i * 0.04) + "s both" }}>
-                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: color + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color, flexShrink: 0, transition: "transform .2s" }}>{i + 1}</div>
+                  <div style={{ width: 26, height: 26, borderRadius: "50%", background: color + "22", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700, color, flexShrink: 0 }}>{i + 1}</div>
                   <input className="fi" placeholder={i === 0 ? hint : "Option " + (i + 1)} defaultValue={(srcs[type] || [])[i] || ""} onBlur={e => updateSource(type, i, e.target.value)} />
                 </div>
               ))}
@@ -1039,21 +899,16 @@ function ClientDash({ uid, tab, setTab, toast }) {
     const clientPhotos = d.photos || [];
     return (
       <div className="page">
-        <div style={{ marginBottom: 20, animation: "fadeDown .4s ease forwards" }}>
-          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Progress Photos and Videos</div>
-          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>Stored on Cloudinary - 25GB free</div>
-        </div>
+        <div style={{ marginBottom: 20, animation: "fadeDown .4s ease forwards" }}><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Progress Photos and Videos</div><div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>Stored on Cloudinary - 25GB free</div></div>
         <div className="card" style={{ marginBottom: 16 }}>
           <label className="upload-area">
             <input type="file" accept="image/*,video/*" multiple style={{ display: "none" }} disabled={uploading} onChange={e => { uploadMedia(Array.from(e.target.files)); e.target.value = ""; }} />
-            <div style={{ fontSize: 32, marginBottom: 8, animation: "float 3s ease infinite" }}>📤</div>
+            <div style={{ fontSize: 32, marginBottom: 8, animation: "float 3s ease infinite" }}>+</div>
             <div style={{ fontWeight: 700, fontSize: 16, color: uploading ? "var(--muted)" : "var(--green)", marginBottom: 6 }}>{uploading ? "Uploading " + uploadPct + "%" : "Upload Photos or Videos"}</div>
             <div style={{ color: "var(--muted2)", fontSize: 13, marginBottom: 10 }}>Select multiple files - full quality - stored free on Cloudinary</div>
             {uploading && <div className="prog-bar" style={{ maxWidth: 300, margin: "0 auto 10px" }}><div className="prog-fill" style={{ width: uploadPct + "%", background: "var(--green)" }} /></div>}
             <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
-              <span className="bdg bdg-g">Photos up to 25MB</span>
-              <span className="bdg bdg-b">Videos up to 100MB</span>
-              <span className="bdg bdg-p">{clientPhotos.length} files uploaded</span>
+              <span className="bdg bdg-g">Photos up to 25MB</span><span className="bdg bdg-b">Videos up to 100MB</span><span className="bdg bdg-p">{clientPhotos.length} files uploaded</span>
             </div>
           </label>
         </div>
@@ -1073,7 +928,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
             </div>
           </div>
         ) : (
-          <div className="card"><div className="empty"><span className="empty-icon">📸</span><div className="empty-title">No photos yet</div><div className="empty-desc">Upload your first progress photo above!</div></div></div>
+          <div className="card"><div className="empty"><span className="empty-icon">+</span><div className="empty-title">No photos yet</div><div className="empty-desc">Upload your first progress photo above!</div></div></div>
         )}
         {viewMedia && (
           <div className="ov" onClick={() => setViewMedia(null)}>
@@ -1091,11 +946,9 @@ function ClientDash({ uid, tab, setTab, toast }) {
   if (tab === "comparison") {
     return (
       <div className="page">
-        <div style={{ marginBottom: 22, animation: "fadeDown .4s ease forwards" }}>
-          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Week by Week Comparison</div>
-        </div>
+        <div style={{ marginBottom: 22, animation: "fadeDown .4s ease forwards" }}><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Week by Week Comparison</div></div>
         {checkins.length < 2
-          ? <div className="card"><div className="empty"><span className="empty-icon">📊</span><div className="empty-title">Not enough data yet</div><div className="empty-desc">Log at least 2 check-ins to see comparisons.</div></div></div>
+          ? <div className="card"><div className="empty"><span className="empty-icon">+</span><div className="empty-title">Not enough data yet</div><div className="empty-desc">Log at least 2 check-ins to see comparisons.</div></div></div>
           : <div className="cmp-grid">
             {checkins.map((c, i) => (
               <div key={i} className="cmp-card" style={{ animationDelay: i * 0.06 + "s" }}>
@@ -1104,10 +957,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
                   <div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Weight</span><span style={{ fontWeight: 700, color: "var(--green)" }}>{c.weight} kg</span></div>
                   <div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Waist</span><span style={{ fontWeight: 700 }}>{c.waist ? c.waist + " cm" : "-"}</span></div>
                   <div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Body Fat</span><span style={{ fontWeight: 700 }}>{c.bodyFat ? c.bodyFat + "%" : "-"}</span></div>
-                  {i > 0 && <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>Change from prev</div>
-                    <div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Weight</span><span style={{ fontWeight: 700, color: (c.weight - checkins[i - 1].weight) < 0 ? "var(--green)" : "var(--red)" }}>{(c.weight - checkins[i - 1].weight) > 0 ? "+" : ""}{(c.weight - checkins[i - 1].weight).toFixed(1)} kg</span></div>
-                  </div>}
+                  {i > 0 && <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}><div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Change</span><span style={{ fontWeight: 700, color: (c.weight - checkins[i - 1].weight) < 0 ? "var(--green)" : "var(--red)" }}>{(c.weight - checkins[i - 1].weight) > 0 ? "+" : ""}{(c.weight - checkins[i - 1].weight).toFixed(1)} kg</span></div></div>}
                 </div>
               </div>
             ))}
@@ -1142,11 +992,8 @@ function ClientDash({ uid, tab, setTab, toast }) {
       </div>
       <div className="checkin-card-today stagger-2" style={{ marginBottom: 16 }} onClick={() => setTab("checkin")}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 15, color: "var(--green)" }}>Daily Check-in</div>
-            <div style={{ fontSize: 12, color: "var(--muted2)", marginTop: 3 }}>Stress, sleep, training performance, digestion and more</div>
-          </div>
-          <span style={{ fontSize: 20, animation: "slideRight 1s ease infinite alternate" }}>→</span>
+          <div><div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 15, color: "var(--green)" }}>Daily Check-in</div><div style={{ fontSize: 12, color: "var(--muted2)", marginTop: 3 }}>Stress, sleep, training performance, digestion and more</div></div>
+          <span style={{ fontSize: 20 }}>→</span>
         </div>
       </div>
       {checkins.length > 0 && (
@@ -1154,11 +1001,7 @@ function ClientDash({ uid, tab, setTab, toast }) {
           <div className="card-title">Recent Check-ins <button className="sh-link" onClick={() => setTab("comparison")}>View all</button></div>
           <table className="tbl">
             <thead><tr><th>Week</th><th>Date</th><th>Weight</th><th>Waist</th><th>Body Fat</th></tr></thead>
-            <tbody>
-              {[...checkins].reverse().slice(0, 5).map((c, i) => (
-                <tr key={i}><td><span className="bdg bdg-g">{c.week}</span></td><td style={{ color: "var(--muted)", fontSize: 12 }}>{c.date}</td><td style={{ fontWeight: 700, color: "var(--green)" }}>{c.weight} kg</td><td style={{ color: "var(--muted)" }}>{c.waist ? c.waist + " cm" : "-"}</td><td style={{ color: "var(--orange)" }}>{c.bodyFat ? c.bodyFat + "%" : "-"}</td></tr>
-              ))}
-            </tbody>
+            <tbody>{[...checkins].reverse().slice(0, 5).map((c, i) => (<tr key={i}><td><span className="bdg bdg-g">{c.week}</span></td><td style={{ color: "var(--muted)", fontSize: 12 }}>{c.date}</td><td style={{ fontWeight: 700, color: "var(--green)" }}>{c.weight} kg</td><td style={{ color: "var(--muted)" }}>{c.waist ? c.waist + " cm" : "-"}</td><td style={{ color: "var(--orange)" }}>{c.bodyFat ? c.bodyFat + "%" : "-"}</td></tr>))}</tbody>
           </table>
         </div>
       )}
@@ -1175,14 +1018,17 @@ function ClientDash({ uid, tab, setTab, toast }) {
       <div className="sh"><div className="sh-title">This Week</div><button className="sh-link" onClick={() => setTab("training")}>Full plan</button></div>
       <div className="card stagger-5" style={{ marginBottom: 20 }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6 }}>
-          {workout.map((day, i) => (
-            <div key={i} className={day.type === "Rest" ? "wk-card rest" : "wk-card"}
-              style={{ borderTop: "3px solid " + (WCOLOR[day.type] || "#475569"), padding: "10px 4px", animationDelay: i * 0.05 + "s" }}
-              onClick={() => day.type !== "Rest" && setWModal(day)}>
-              <div style={{ fontSize: 8, fontWeight: 700, textTransform: "uppercase", color: "var(--muted)", marginBottom: 5 }}>{day.day.slice(0, 3)}</div>
-              <div style={{ fontSize: 9, fontWeight: 700, color: WCOLOR[day.type] || "#475569" }}>{day.type}</div>
-            </div>
-          ))}
+          {workout.map((day, i) => {
+            const dc = DAY_COLORS[i % DAY_COLORS.length];
+            return (
+              <div key={i} className={day.type === "Rest" ? "wk-card rest" : "wk-card"}
+                style={{ borderTop: "3px solid " + dc.accent, padding: "10px 4px", animationDelay: i * 0.05 + "s" }}
+                onClick={() => day.type !== "Rest" && setWModal(day)}>
+                <div style={{ fontSize: 8, fontWeight: 700, textTransform: "uppercase", color: dc.accent, marginBottom: 3, letterSpacing: ".08em" }}>{day.day.slice(0, 3)}</div>
+                <div style={{ fontSize: 9, fontWeight: 700, color: WCOLOR[day.type] || "#475569" }}>{day.type}</div>
+              </div>
+            );
+          })}
         </div>
       </div>
       {(d.weightHistory || []).length > 1 && (
@@ -1260,7 +1106,6 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
   const update = async (field, value) => { if (!selId) return; await updateDoc(doc(db, "clients", selId), { [field]: value }); };
   const updateN = async (field, value) => { if (!selId) return; await updateDoc(doc(db, "clients", selId), { ["nutrition." + field]: parseInt(value) || 0 }); };
   const sendMessage = async () => { if (!msgText.trim() || !selId) return; setSendingMsg(true); await updateDoc(doc(db, "clients", selId), { coachMessage: msgText.trim() }); toast("Message sent!", "success"); setMsgText(""); setSendingMsg(false); };
-
   const autoSaveWorkout = async (plan) => { await updateDoc(doc(db, "clients", selId), { workoutPlan: plan }); toast("Workout auto-saved!", "success"); };
   const autoSaveMeals = async (plan) => {
     const cal = plan.reduce((a, m) => a + m.items.reduce((b, i) => b + (i.cal || 0), 0), 0);
@@ -1277,8 +1122,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
     setAddSaving(true);
     try {
       const cred = await createUserWithEmailAndPassword(auth, nc.email, nc.password);
-      const clientUid = cred.user.uid;
-      await setDoc(doc(db, "clients", clientUid), {
+      await setDoc(doc(db, "clients", cred.user.uid), {
         name: nc.name.trim(), email: nc.email.trim().toLowerCase(), phone: nc.phone.trim(),
         avatar: nc.name.trim().split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
         phase: nc.phase, week: parseInt(nc.week) || 1, weight: null, waist: null, bodyFat: null,
@@ -1315,18 +1159,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
               <span className="bdg bdg-g" style={{ marginLeft: "auto" }}>{c.weight ? c.weight + "kg" : "-"}</span>
             </div>
             {(c.weightHistory || []).length > 1
-              ? <div style={{ height: 140 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={c.weightHistory}>
-                    <defs><linearGradient id={"g" + c.id} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} /><stop offset="95%" stopColor="#22c55e" stopOpacity={0} /></linearGradient></defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e2d45" />
-                    <XAxis dataKey="week" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                    <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: "#0f1629", border: "1px solid #1e2d45", borderRadius: 8, fontSize: 11 }} />
-                    <Area type="monotone" dataKey="weight" stroke="#22c55e" strokeWidth={2} fill={"url(#g" + c.id + ")"} dot={{ fill: "#22c55e", r: 2.5, strokeWidth: 0 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+              ? <div style={{ height: 140 }}><ResponsiveContainer width="100%" height="100%"><AreaChart data={c.weightHistory}><defs><linearGradient id={"g" + c.id} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} /><stop offset="95%" stopColor="#22c55e" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#1e2d45" /><XAxis dataKey="week" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} /><YAxis domain={["auto", "auto"]} tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} /><Tooltip contentStyle={{ background: "#0f1629", border: "1px solid #1e2d45", borderRadius: 8, fontSize: 11 }} /><Area type="monotone" dataKey="weight" stroke="#22c55e" strokeWidth={2} fill={"url(#g" + c.id + ")"} dot={{ fill: "#22c55e", r: 2.5, strokeWidth: 0 }} /></AreaChart></ResponsiveContainer></div>
               : <div style={{ height: 80, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)", fontSize: 12 }}>Awaiting check-ins</div>}
           </div>
         ))}
@@ -1346,14 +1179,11 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, animation: "fadeDown .4s ease forwards" }}>
           <button className="btn btn-s btn-sm" onClick={() => { setSelId(null); setSel(null); }}>← Back</button>
           <div className="av av-md av-g">{sel.avatar}</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 19 }}>{sel.name}</div>
-            <div style={{ fontSize: 12, color: "var(--muted)" }}>{sel.email}{sel.phone ? " - " + sel.phone : ""}</div>
-          </div>
+          <div style={{ flex: 1 }}><div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 19 }}>{sel.name}</div><div style={{ fontSize: 12, color: "var(--muted)" }}>{sel.email}{sel.phone ? " - " + sel.phone : ""}</div></div>
           <span className="live"><span className="dot" />Live</span>
         </div>
         <div className="tab-bar">
-          {[["overview", "Overview"], ["checkins", "Check-ins"], ["daily", "Daily Logs"], ["photos", "Media"], ["comparison", "Compare"], ["message", "Message"], ["nutrition", "Macros"], ["meals", "Meals"], ["analytics", "Analytics"], ["sources", "Sources"], ["workout", "Workout"], ["phase", "Phase"]].map(([k, l]) => (
+          {[["overview","Overview"],["checkins","Check-ins"],["daily","Daily Logs"],["photos","Media"],["comparison","Compare"],["message","Message"],["nutrition","Macros"],["meals","Meals"],["analytics","Analytics"],["sources","Sources"],["workout","Workout"],["phase","Phase"]].map(([k, l]) => (
             <button key={k} className={innerTab === k ? "tab-item active" : "tab-item"} onClick={() => setInnerTab(k)}>{l}</button>
           ))}
         </div>
@@ -1380,30 +1210,16 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
               </div>
             )}
             <div className="g2 stagger-3" style={{ marginBottom: 14 }}>
-              <div className="card"><div className="card-title">Check-ins</div><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 36, fontWeight: 800, color: "var(--green)", animation: "countUp .5s ease forwards" }}>{checkins.length}</div></div>
-              <div className="card"><div className="card-title">Media</div><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 36, fontWeight: 800, color: "var(--purple)", animation: "countUp .5s ease .1s forwards" }}>{media.length}</div></div>
+              <div className="card"><div className="card-title">Check-ins</div><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 36, fontWeight: 800, color: "var(--green)" }}>{checkins.length}</div></div>
+              <div className="card"><div className="card-title">Media</div><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 36, fontWeight: 800, color: "var(--purple)" }}>{media.length}</div></div>
             </div>
             {(sel.weightHistory || []).length > 1 && (
               <div className="card stagger-4" style={{ marginBottom: 14 }}>
                 <div className="card-title">Weight Chart</div>
-                <div style={{ height: 170 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={sel.weightHistory}>
-                      <defs><linearGradient id="wg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} /><stop offset="95%" stopColor="#22c55e" stopOpacity={0} /></linearGradient></defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e2d45" />
-                      <XAxis dataKey="week" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                      <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{ background: "#0f1629", border: "1px solid #1e2d45", borderRadius: 9 }} />
-                      <Area type="monotone" dataKey="weight" stroke="#22c55e" strokeWidth={2.5} fill="url(#wg2)" dot={{ fill: "#22c55e", r: 3, strokeWidth: 0 }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
+                <div style={{ height: 170 }}><ResponsiveContainer width="100%" height="100%"><AreaChart data={sel.weightHistory}><defs><linearGradient id="wg2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#22c55e" stopOpacity={0.2} /><stop offset="95%" stopColor="#22c55e" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#1e2d45" /><XAxis dataKey="week" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} /><YAxis domain={["auto", "auto"]} tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} /><Tooltip contentStyle={{ background: "#0f1629", border: "1px solid #1e2d45", borderRadius: 9 }} /><Area type="monotone" dataKey="weight" stroke="#22c55e" strokeWidth={2.5} fill="url(#wg2)" dot={{ fill: "#22c55e", r: 3, strokeWidth: 0 }} /></AreaChart></ResponsiveContainer></div>
               </div>
             )}
-            <div className="card stagger-5">
-              <div className="card-title">Current Message</div>
-              <div className={"msg-b" + (sel.coachMessage ? " has" : "")}>{sel.coachMessage || "No message sent yet."}</div>
-            </div>
+            <div className="card stagger-5"><div className="card-title">Current Message</div><div className={"msg-b" + (sel.coachMessage ? " has" : "")}>{sel.coachMessage || "No message sent yet."}</div></div>
             <div style={{ marginTop: 14 }}><SourcesTablePanel sources={clientSources} /></div>
           </div>
         )}
@@ -1412,19 +1228,13 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
           <div className="card">
             <div className="card-title">Daily Check-in Logs - {sel.name}</div>
             {recentDailyCheckins.length === 0
-              ? <div className="empty"><span className="empty-icon">📋</span><div className="empty-title">No daily check-ins yet</div></div>
+              ? <div className="empty"><span className="empty-icon">+</span><div className="empty-title">No daily check-ins yet</div></div>
               : recentDailyCheckins.map((c, i) => (
                 <div key={i} style={{ background: "var(--s2)", borderRadius: 10, padding: 14, marginBottom: 10, border: "1px solid var(--border)", animation: "slideRight .35s ease " + (i * 0.06) + "s both" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                    <span style={{ fontWeight: 700, fontSize: 14 }}>{c.date}</span>
-                    <span className="bdg bdg-g">{c.time}</span>
-                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}><span style={{ fontWeight: 700, fontSize: 14 }}>{c.date}</span><span className="bdg bdg-g">{c.time}</span></div>
                   <div className="g3" style={{ marginBottom: 10 }}>
                     {[["Stress", c.stressLevel, "#f87171"], ["Hunger", c.hungerCravings, "#fb923c"], ["Training", c.trainingPerformance, "#4ade80"], ["Nutrition", c.nutritionAdherence, "#a78bfa"], ["Sleep", c.sleepQuality, "#38bdf8"], ["Water", (c.waterIntake || 0) + "L", "#38bdf8"]].map(([l, v, co]) => (
-                      <div key={l} style={{ textAlign: "center" }}>
-                        <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 18, fontWeight: 800, color: co }}>{v}</div>
-                        <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", fontWeight: 600 }}>{l}</div>
-                      </div>
+                      <div key={l} style={{ textAlign: "center" }}><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 18, fontWeight: 800, color: co }}>{v}</div><div style={{ fontSize: 10, color: "var(--muted)", textTransform: "uppercase", fontWeight: 600 }}>{l}</div></div>
                     ))}
                   </div>
                   {c.noteToCoach && <div className="note-box">{c.noteToCoach}</div>}
@@ -1436,68 +1246,24 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
         {innerTab === "checkins" && (
           <div className="card">
             <div className="card-title">Weight Check-in History - {sel.name}</div>
-            {checkins.length === 0
-              ? <div className="empty"><span className="empty-icon">📋</span><div className="empty-title">No check-ins yet</div></div>
-              : <table className="tbl">
-                <thead><tr><th>Week</th><th>Date</th><th>Weight</th><th>Waist</th><th>Body Fat</th><th>Change</th></tr></thead>
-                <tbody>
-                  {[...checkins].reverse().map((c, i, arr) => {
-                    const prev = arr[i + 1]; const change = prev ? (c.weight - prev.weight).toFixed(1) : null;
-                    return (
-                      <tr key={i}>
-                        <td><span className="bdg bdg-g">{c.week}</span></td>
-                        <td style={{ color: "var(--muted)", fontSize: 12 }}>{c.date}</td>
-                        <td style={{ fontWeight: 700, color: "var(--green)" }}>{c.weight} kg</td>
-                        <td style={{ color: "var(--muted)" }}>{c.waist ? c.waist + " cm" : "-"}</td>
-                        <td style={{ color: "var(--orange)" }}>{c.bodyFat ? c.bodyFat + "%" : "-"}</td>
-                        <td>{change !== null && <span className={"bdg " + (parseFloat(change) < 0 ? "bdg-g" : parseFloat(change) > 0 ? "bdg-r" : "bdg-p")}>{parseFloat(change) > 0 ? "+" : ""}{change} kg</span>}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>}
+            {checkins.length === 0 ? <div className="empty"><span className="empty-icon">+</span><div className="empty-title">No check-ins yet</div></div>
+              : <table className="tbl"><thead><tr><th>Week</th><th>Date</th><th>Weight</th><th>Waist</th><th>Body Fat</th><th>Change</th></tr></thead><tbody>{[...checkins].reverse().map((c, i, arr) => { const prev = arr[i + 1]; const change = prev ? (c.weight - prev.weight).toFixed(1) : null; return (<tr key={i}><td><span className="bdg bdg-g">{c.week}</span></td><td style={{ color: "var(--muted)", fontSize: 12 }}>{c.date}</td><td style={{ fontWeight: 700, color: "var(--green)" }}>{c.weight} kg</td><td style={{ color: "var(--muted)" }}>{c.waist ? c.waist + " cm" : "-"}</td><td style={{ color: "var(--orange)" }}>{c.bodyFat ? c.bodyFat + "%" : "-"}</td><td>{change !== null && <span className={"bdg " + (parseFloat(change) < 0 ? "bdg-g" : parseFloat(change) > 0 ? "bdg-r" : "bdg-p")}>{parseFloat(change) > 0 ? "+" : ""}{change} kg</span>}</td></tr>); })}</tbody></table>}
           </div>
         )}
 
         {innerTab === "photos" && (
           <div className="card">
             <div className="card-title">Media - {sel.name} ({media.length} files)</div>
-            {media.length === 0
-              ? <div className="empty"><span className="empty-icon">📸</span><div className="empty-title">No media yet</div></div>
-              : <div className="photo-grid">
-                {[...media].reverse().map((p, i) => (
-                  <div key={i} className="photo-item" style={{ animationDelay: i * 0.04 + "s" }}>
-                    <div onClick={() => setViewMedia(p)} style={{ width: "100%", height: "100%" }}>
-                      {p.type === "video" ? <><video src={p.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><div className="video-badge">Video</div></> : <img src={p.url} alt="" />}
-                    </div>
-                    <div className="photo-label">{p.date}</div>
-                    <button className="photo-del" onClick={e => { e.stopPropagation(); deleteClientPhoto(p); }}>X Delete</button>
-                  </div>
-                ))}
-              </div>}
+            {media.length === 0 ? <div className="empty"><span className="empty-icon">+</span><div className="empty-title">No media yet</div></div>
+              : <div className="photo-grid">{[...media].reverse().map((p, i) => (<div key={i} className="photo-item" style={{ animationDelay: i * 0.04 + "s" }}><div onClick={() => setViewMedia(p)} style={{ width: "100%", height: "100%" }}>{p.type === "video" ? <><video src={p.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><div className="video-badge">Video</div></> : <img src={p.url} alt="" />}</div><div className="photo-label">{p.date}</div><button className="photo-del" onClick={e => { e.stopPropagation(); deleteClientPhoto(p); }}>X Delete</button></div>))}</div>}
           </div>
         )}
 
         {innerTab === "comparison" && (
           <div className="card">
             <div className="card-title">Week-by-Week - {sel.name}</div>
-            {checkins.length < 2
-              ? <div className="empty"><span className="empty-icon">📊</span><div className="empty-title">Need 2+ check-ins</div></div>
-              : <div className="cmp-grid">
-                {checkins.map((c, i) => (
-                  <div key={i} className="cmp-card" style={{ animationDelay: i * 0.06 + "s" }}>
-                    <div className="cmp-head" style={{ color: "var(--green)" }}>{c.week} - {c.date}</div>
-                    <div className="cmp-body">
-                      <div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Weight</span><span style={{ fontWeight: 700, color: "var(--green)" }}>{c.weight} kg</span></div>
-                      <div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Waist</span><span style={{ fontWeight: 700 }}>{c.waist ? c.waist + " cm" : "-"}</span></div>
-                      <div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Body Fat</span><span style={{ fontWeight: 700 }}>{c.bodyFat ? c.bodyFat + "%" : "-"}</span></div>
-                      {i > 0 && <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-                        <div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Change</span><span style={{ fontWeight: 700, color: (c.weight - checkins[i - 1].weight) < 0 ? "var(--green)" : "var(--red)" }}>{(c.weight - checkins[i - 1].weight) > 0 ? "+" : ""}{(c.weight - checkins[i - 1].weight).toFixed(1)} kg</span></div>
-                      </div>}
-                    </div>
-                  </div>
-                ))}
-              </div>}
+            {checkins.length < 2 ? <div className="empty"><span className="empty-icon">+</span><div className="empty-title">Need 2+ check-ins</div></div>
+              : <div className="cmp-grid">{checkins.map((c, i) => (<div key={i} className="cmp-card" style={{ animationDelay: i * 0.06 + "s" }}><div className="cmp-head" style={{ color: "var(--green)" }}>{c.week} - {c.date}</div><div className="cmp-body"><div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Weight</span><span style={{ fontWeight: 700, color: "var(--green)" }}>{c.weight} kg</span></div><div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Waist</span><span style={{ fontWeight: 700 }}>{c.waist ? c.waist + " cm" : "-"}</span></div><div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Body Fat</span><span style={{ fontWeight: 700 }}>{c.bodyFat ? c.bodyFat + "%" : "-"}</span></div>{i > 0 && <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}><div className="cmp-stat"><span style={{ color: "var(--muted)" }}>Change</span><span style={{ fontWeight: 700, color: (c.weight - checkins[i - 1].weight) < 0 ? "var(--green)" : "var(--red)" }}>{(c.weight - checkins[i - 1].weight) > 0 ? "+" : ""}{(c.weight - checkins[i - 1].weight).toFixed(1)} kg</span></div></div>}</div></div>))}</div>}
           </div>
         )}
 
@@ -1528,23 +1294,28 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
           <div className="card">
             <div className="card-title">Workout Plan - {sel.name} <button className="btn btn-p btn-sm" onClick={() => setShowWorkoutEditor(true)}>Edit Plan</button></div>
             <div className="alert alert-g">Changes auto-save as you type in the editor!</div>
-            {(sel.workoutPlan || DEFAULT_WORKOUT).map((day, di) => (
-              <div key={di} style={{ background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 10, padding: 12, marginBottom: 10, animation: "fadeUp .3s ease " + (di * 0.05) + "s both", transition: "border-color .2s" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: day.type !== "Rest" ? 10 : 0 }}>
-                  <div><span style={{ fontWeight: 700 }}>{day.day}</span><span className="bdg bdg-p" style={{ marginLeft: 8 }}>{day.type}</span></div>
-                  {day.type !== "Rest" && <span style={{ fontSize: 12, color: "var(--muted)" }}>{day.exercises.length} exercises</span>}
-                </div>
-                {day.type !== "Rest" && day.exercises.map((ex, ei) => (
-                  <div key={ei} style={{ padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: 13, animation: "slideRight .3s ease " + (di * 0.05 + ei * 0.03) + "s both" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontWeight: 600 }}>{ex.name}</span>
-                      <span style={{ color: "var(--muted)", fontSize: 12 }}>{ex.sets}x{ex.reps} - {ex.rest}</span>
-                    </div>
-                    {ex.note && <div className="note-box" style={{ marginTop: 5 }}>{ex.note}</div>}
+            {(sel.workoutPlan || DEFAULT_WORKOUT).map((day, di) => {
+              const dc = DAY_COLORS[di % DAY_COLORS.length];
+              return (
+                <div key={di} style={{ background: dc.bg, border: "2px solid " + dc.border, borderRadius: 10, padding: 12, marginBottom: 10, animation: "fadeUp .3s ease " + (di * 0.05) + "s both" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: day.type !== "Rest" ? 10 : 0 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: dc.accent + "22", border: "2px solid " + dc.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: dc.accent, flexShrink: 0 }}>{di + 1}</div>
+                    <span style={{ fontWeight: 700, color: dc.accent }}>{day.day}</span>
+                    <span style={{ display: "inline-flex", padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: dc.accent + "22", color: dc.accent, border: "1px solid " + dc.border, marginLeft: 4 }}>{day.type}</span>
+                    {day.type !== "Rest" && <span style={{ fontSize: 12, color: "var(--muted)", marginLeft: "auto" }}>{day.exercises.length} exercises</span>}
                   </div>
-                ))}
-              </div>
-            ))}
+                  {day.type !== "Rest" && day.exercises.map((ex, ei) => (
+                    <div key={ei} style={{ padding: "8px 0", borderBottom: "1px solid " + dc.border, fontSize: 13, animation: "slideRight .3s ease " + (di * 0.05 + ei * 0.03) + "s both" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontWeight: 600 }}>{ex.name}</span>
+                        <span style={{ color: "var(--muted)", fontSize: 12 }}>{ex.sets}x{ex.reps} - {ex.rest}</span>
+                      </div>
+                      {ex.note && <div className="note-box" style={{ marginTop: 5 }}>{ex.note}</div>}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -1552,11 +1323,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
           <div className="card">
             <div className="card-title">Phase and Stats - {sel.name}</div>
             <div className="fg">
-              <div className="fld"><div className="fl">Phase</div>
-                <select className="fsel" value={sel.phase} onChange={e => { update("phase", e.target.value); toast("Phase updated!", "success"); }}>
-                  <option>Cut Phase 1</option><option>Cut Phase 2</option><option>Bulk Phase 1</option><option>Bulk Phase 2</option><option>Maintenance</option><option>Peak Week</option><option>Reverse Diet</option>
-                </select>
-              </div>
+              <div className="fld"><div className="fl">Phase</div><select className="fsel" value={sel.phase} onChange={e => { update("phase", e.target.value); toast("Phase updated!", "success"); }}><option>Cut Phase 1</option><option>Cut Phase 2</option><option>Bulk Phase 1</option><option>Bulk Phase 2</option><option>Maintenance</option><option>Peak Week</option><option>Reverse Diet</option></select></div>
               <div className="fld"><div className="fl">Current Week</div><input className="fi" type="number" min="1" max="52" value={sel.week} onChange={e => update("week", parseInt(e.target.value) || 1)} /></div>
               <div className="fld"><div className="fl">Body Fat %</div><NumInput value={sel.bodyFat || 0} color="var(--orange)" onChange={v => { update("bodyFat", v); toast("Updated!", "success"); }} /></div>
               <div className="fld"><div className="fl">Starting Weight (kg)</div><input className="fi" type="number" step="0.1" defaultValue={sel.weight || ""} placeholder="86" onBlur={e => update("weight", parseFloat(e.target.value) || null)} /></div>
@@ -1574,20 +1341,13 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
             <div>
               <div className="card stagger-1" style={{ marginBottom: 14 }}>
                 <div className="card-title">Daily Targets</div>
-                <div className="fg">
-                  {[["Calories (kcal)", "calories", "var(--green)"], ["Protein (g)", "protein", "var(--purple)"], ["Carbs (g)", "carbs", "var(--orange)"], ["Fats (g)", "fats", "var(--red)"], ["Fiber (g)", "fiber", "#34d399"]].map(([l, k, co]) => (
-                    <div key={k} className="fld"><div className="fl" style={{ color: co }}>{l}</div><NumInput value={nn[k] || 0} color={co} onChange={v => updateN(k, v)} /></div>
-                  ))}
-                </div>
+                <div className="fg">{[["Calories (kcal)", "calories", "var(--green)"], ["Protein (g)", "protein", "var(--purple)"], ["Carbs (g)", "carbs", "var(--orange)"], ["Fats (g)", "fats", "var(--red)"], ["Fiber (g)", "fiber", "#34d399"]].map(([l, k, co]) => (<div key={k} className="fld"><div className="fl" style={{ color: co }}>{l}</div><NumInput value={nn[k] || 0} color={co} onChange={v => updateN(k, v)} /></div>))}</div>
               </div>
               <div className="card stagger-2" style={{ marginBottom: 14 }}>
                 <div className="card-title">Meal Plan Totals</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   {[["Total Protein", totP + "g", "var(--purple)"], ["Total Carbs", totC + "g", "var(--orange)"], ["Total Fats", totF + "g", "var(--red)"], ["Total Fiber", totFib + "g", "#34d399"], ["Total Calories", totCal + " kcal", "var(--green)"]].map(([l, v, co], i) => (
-                    <div key={l} style={{ background: "var(--s2)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--border)", animation: "countUp .4s ease " + (i * 0.07) + "s both" }}>
-                      <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 20, fontWeight: 800, color: co }}>{v}</div>
-                      <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", marginTop: 4 }}>{l}</div>
-                    </div>
+                    <div key={l} style={{ background: "var(--s2)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--border)", animation: "countUp .4s ease " + (i * 0.07) + "s both" }}><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 20, fontWeight: 800, color: co }}>{v}</div><div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", marginTop: 4 }}>{l}</div></div>
                   ))}
                 </div>
               </div>
@@ -1596,12 +1356,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
                 <table className="tbl">
                   <thead><tr><th>Meal</th><th>Time</th><th style={{ color: "var(--green)" }}>Kcal</th><th style={{ color: "var(--purple)" }}>P</th><th style={{ color: "var(--orange)" }}>C</th><th style={{ color: "var(--red)" }}>F</th><th style={{ color: "#34d399" }}>Fib</th></tr></thead>
                   <tbody>
-                    {mealPlan.map((meal, mi) => {
-                      const mp = meal.items.reduce((a, i) => a + (i.protein || 0), 0); const mc = meal.items.reduce((a, i) => a + (i.carbs || 0), 0);
-                      const mf = meal.items.reduce((a, i) => a + (i.fats || 0), 0); const mfib = meal.items.reduce((a, i) => a + (i.fiber || 0), 0);
-                      const mcal = meal.items.reduce((a, i) => a + (i.cal || 0), 0);
-                      return (<tr key={mi}><td style={{ fontWeight: 600 }}>{meal.name}</td><td style={{ color: "var(--muted)", fontSize: 12 }}>{meal.time}</td><td style={{ fontWeight: 700, color: "var(--green)" }}>{mcal}</td><td style={{ color: "var(--purple)" }}>{mp}</td><td style={{ color: "var(--orange)" }}>{mc}</td><td style={{ color: "var(--red)" }}>{mf}</td><td style={{ color: "#34d399" }}>{mfib}</td></tr>);
-                    })}
+                    {mealPlan.map((meal, mi) => { const mp = meal.items.reduce((a, i) => a + (i.protein || 0), 0); const mc = meal.items.reduce((a, i) => a + (i.carbs || 0), 0); const mf = meal.items.reduce((a, i) => a + (i.fats || 0), 0); const mfib = meal.items.reduce((a, i) => a + (i.fiber || 0), 0); const mcal = meal.items.reduce((a, i) => a + (i.cal || 0), 0); return (<tr key={mi}><td style={{ fontWeight: 600 }}>{meal.name}</td><td style={{ color: "var(--muted)", fontSize: 12 }}>{meal.time}</td><td style={{ fontWeight: 700, color: "var(--green)" }}>{mcal}</td><td style={{ color: "var(--purple)" }}>{mp}</td><td style={{ color: "var(--orange)" }}>{mc}</td><td style={{ color: "var(--red)" }}>{mf}</td><td style={{ color: "#34d399" }}>{mfib}</td></tr>); })}
                     <tr style={{ borderTop: "2px solid var(--border2)" }}><td style={{ fontWeight: 800, color: "var(--green)" }}>TOTAL</td><td></td><td style={{ fontWeight: 800, color: "var(--green)" }}>{totCal}</td><td style={{ fontWeight: 800, color: "var(--purple)" }}>{totP}</td><td style={{ fontWeight: 800, color: "var(--orange)" }}>{totC}</td><td style={{ fontWeight: 800, color: "var(--red)" }}>{totF}</td><td style={{ fontWeight: 800, color: "#34d399" }}>{totFib}</td></tr>
                   </tbody>
                 </table>
@@ -1620,10 +1375,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
                 <div key={type} style={{ marginBottom: 18 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color, marginBottom: 8 }}>{label}</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
-                    {[0, 1, 2, 3, 4].map(i => {
-                      const val = (sources[type] || [])[i];
-                      return (<div key={i} style={{ background: "var(--s2)", borderRadius: 9, padding: "10px 12px", border: "1px solid " + (val ? color + "55" : "var(--border)"), textAlign: "center", animation: "bounceIn .4s ease " + (ci * 0.1 + i * 0.05) + "s both", transition: "transform .2s,border-color .2s" }}><div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>{"#" + (i + 1)}</div><div style={{ fontWeight: 600, fontSize: 13, color: val ? color : "var(--muted)" }}>{val || "-"}</div></div>);
-                    })}
+                    {[0, 1, 2, 3, 4].map(i => { const val = (sources[type] || [])[i]; return (<div key={i} style={{ background: "var(--s2)", borderRadius: 9, padding: "10px 12px", border: "1px solid " + (val ? color + "55" : "var(--border)"), textAlign: "center", animation: "bounceIn .4s ease " + (ci * 0.1 + i * 0.05) + "s both" }}><div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", marginBottom: 4 }}>{"#" + (i + 1)}</div><div style={{ fontWeight: 600, fontSize: 13, color: val ? color : "var(--muted)" }}>{val || "-"}</div></div>); })}
                   </div>
                 </div>
               ))}
@@ -1646,9 +1398,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
                       <div key={ii} className="food-row">
                         <div><span style={{ fontWeight: 600 }}>{item.food}</span><span style={{ color: "var(--muted)", fontSize: 12, marginLeft: 6 }}>{item.amount}</span></div>
                         <div style={{ display: "flex", gap: 8, fontSize: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                          <span style={{ color: "var(--purple)" }}>{item.protein}g P</span><span style={{ color: "var(--orange)" }}>{item.carbs}g C</span>
-                          <span style={{ color: "var(--red)" }}>{item.fats}g F</span><span style={{ color: "#34d399" }}>{item.fiber || 0}g Fib</span>
-                          <span style={{ color: "var(--green)", fontWeight: 700 }}>{item.cal} cal</span>
+                          <span style={{ color: "var(--purple)" }}>{item.protein}g P</span><span style={{ color: "var(--orange)" }}>{item.carbs}g C</span><span style={{ color: "var(--red)" }}>{item.fats}g F</span><span style={{ color: "#34d399" }}>{item.fiber || 0}g Fib</span><span style={{ color: "var(--green)", fontWeight: 700 }}>{item.cal} cal</span>
                         </div>
                       </div>
                     ))}
@@ -1683,7 +1433,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
         <button className="btn btn-p" onClick={() => setShowAdd(true)}>+ Add Client</button>
       </div>
       {clients.length === 0
-        ? <div className="card"><div className="empty"><span className="empty-icon">👤</span><div className="empty-title">No clients yet</div><button className="btn btn-p" onClick={() => setShowAdd(true)}>+ Add Client</button></div></div>
+        ? <div className="card"><div className="empty"><span className="empty-icon">+</span><div className="empty-title">No clients yet</div><button className="btn btn-p" onClick={() => setShowAdd(true)}>+ Add Client</button></div></div>
         : <div className="card">
           <table className="tbl">
             <thead><tr><th>Client</th><th>Phase</th><th>Weight</th><th>Check-ins</th><th>Daily</th><th>Media</th><th>Actions</th></tr></thead>
@@ -1760,9 +1510,9 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
         ))}
       </div>
       {clients.length === 0
-        ? <div className="card"><div className="empty"><span className="empty-icon">🚀</span><div className="empty-title">Ready to go!</div><div className="empty-desc">Add your first client to get started.</div><button className="btn btn-p" style={{ padding: "11px 24px" }} onClick={() => setTab("clients")}>+ Add First Client</button></div></div>
+        ? <div className="card"><div className="empty"><span className="empty-icon">+</span><div className="empty-title">Ready to go!</div><div className="empty-desc">Add your first client to get started.</div><button className="btn btn-p" style={{ padding: "11px 24px" }} onClick={() => setTab("clients")}>+ Add First Client</button></div></div>
         : <>
-          <div className="sh"><div className="sh-title">Clients</div><button className="sh-link" onClick={() => setTab("clients")}>Manage all →</button></div>
+          <div className="sh"><div className="sh-title">Clients</div><button className="sh-link" onClick={() => setTab("clients")}>Manage all</button></div>
           <div className="ga">
             {clients.map((c, idx) => {
               const todayDaily = (c.dailyCheckins || []).find(dc => dc.date === new Date().toLocaleDateString("en-IN"));
@@ -1774,11 +1524,11 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
                     <span className="bdg bdg-g">W{c.week}</span>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-                    <div style={{ padding: "8px 10px", background: "var(--s2)", borderRadius: 9, border: "1px solid var(--border)", transition: "border-color .2s" }}><div style={{ fontSize: 13, fontWeight: 700, color: "var(--green)", fontFamily: "'Outfit',sans-serif" }}>{c.weight ? c.weight + "kg" : "-"}</div><div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", marginTop: 2 }}>Weight</div></div>
-                    <div style={{ padding: "8px 10px", background: "var(--s2)", borderRadius: 9, border: "1px solid var(--border)", transition: "border-color .2s" }}><div style={{ fontSize: 13, fontWeight: 700, color: "var(--purple)", fontFamily: "'Outfit',sans-serif" }}>{(c.checkIns || []).length} logs</div><div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", marginTop: 2 }}>Check-ins</div></div>
+                    <div style={{ padding: "8px 10px", background: "var(--s2)", borderRadius: 9, border: "1px solid var(--border)" }}><div style={{ fontSize: 13, fontWeight: 700, color: "var(--green)", fontFamily: "'Outfit',sans-serif" }}>{c.weight ? c.weight + "kg" : "-"}</div><div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", marginTop: 2 }}>Weight</div></div>
+                    <div style={{ padding: "8px 10px", background: "var(--s2)", borderRadius: 9, border: "1px solid var(--border)" }}><div style={{ fontSize: 13, fontWeight: 700, color: "var(--purple)", fontFamily: "'Outfit',sans-serif" }}>{(c.checkIns || []).length} logs</div><div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", marginTop: 2 }}>Check-ins</div></div>
                   </div>
-                  <div style={{ padding: "7px 10px", background: todayDaily ? "var(--green-bg)" : "rgba(251,191,36,.08)", borderRadius: 8, fontSize: 11, color: todayDaily ? "var(--green)" : "var(--yellow)", fontWeight: 600, border: "1px solid " + (todayDaily ? "var(--green-b)" : "rgba(251,191,36,.2)"), transition: "all .3s" }}>
-                    {todayDaily ? "✓ Daily check-in done today" : "⏳ No daily check-in today"}
+                  <div style={{ padding: "7px 10px", background: todayDaily ? "var(--green-bg)" : "rgba(251,191,36,.08)", borderRadius: 8, fontSize: 11, color: todayDaily ? "var(--green)" : "var(--yellow)", fontWeight: 600, border: "1px solid " + (todayDaily ? "var(--green-b)" : "rgba(251,191,36,.2)") }}>
+                    {todayDaily ? "Daily check-in done today" : "No daily check-in today"}
                   </div>
                 </div>
               );
@@ -1817,12 +1567,8 @@ function LoginScreen({ onLogin, onSetup, coachExists }) {
   if (showForgot) return (
     <div className="auth-wrap"><div className="auth-card">
       <div className="auth-logo">FwA</div><div className="auth-title">Reset Password</div><div className="auth-sub">Enter your email for a reset link</div>
-      {forgotSent
-        ? <div className="alert alert-g" style={{ textAlign: "center", padding: 20 }}>Reset email sent! Check your inbox.<div style={{ marginTop: 14 }}><button className="btn btn-s" onClick={() => { setShowForgot(false); setForgotSent(false); setForgotEm(""); }}>Back to Login</button></div></div>
-        : <><div className="fld"><div className="fl">Email</div><input className="fi" type="email" placeholder="your@email.com" value={forgotEm} onChange={e => setForgotEm(e.target.value)} onKeyDown={e => e.key === "Enter" && sendReset()} /></div>
-          {err && <div className="alert alert-e">{err}</div>}
-          <button className="auth-btn" onClick={sendReset} disabled={forgotLd || !forgotEm}>{forgotLd ? "Sending..." : "Send Reset Email"}</button>
-          <div className="auth-switch"><button onClick={() => setShowForgot(false)}>Back to Login</button></div></>}
+      {forgotSent ? <div className="alert alert-g" style={{ textAlign: "center", padding: 20 }}>Reset email sent! Check your inbox.<div style={{ marginTop: 14 }}><button className="btn btn-s" onClick={() => { setShowForgot(false); setForgotSent(false); setForgotEm(""); }}>Back to Login</button></div></div>
+        : <><div className="fld"><div className="fl">Email</div><input className="fi" type="email" placeholder="your@email.com" value={forgotEm} onChange={e => setForgotEm(e.target.value)} onKeyDown={e => e.key === "Enter" && sendReset()} /></div>{err && <div className="alert alert-e">{err}</div>}<button className="auth-btn" onClick={sendReset} disabled={forgotLd || !forgotEm}>{forgotLd ? "Sending..." : "Send Reset Email"}</button><div className="auth-switch"><button onClick={() => setShowForgot(false)}>Back to Login</button></div></>}
     </div></div>
   );
 
@@ -1898,20 +1644,16 @@ export default function App() {
   }, []);
 
   const handleLogin = (u) => {
-    // Show splash screen on login
     if (!splashShownRef.current) {
       splashShownRef.current = true;
       setShowSplash(true);
       setTimeout(() => { setUser(u); setShowSplash(false); }, 3000);
-    } else {
-      setUser(u);
-    }
+    } else { setUser(u); }
   };
 
   const logout = async () => { await signOut(auth); setUser(null); setTab("home"); splashShownRef.current = false; };
 
   if (showSplash) return <div><style>{CSS}</style><SplashScreen onDone={() => setShowSplash(false)} /></div>;
-
   if (authLoading) return <div style={{ background: "var(--bg)" }}><style>{CSS}</style><div className="spin-wrap" style={{ minHeight: "100vh" }}><div className="spinner-lg" /></div></div>;
 
   if (!user) return (
