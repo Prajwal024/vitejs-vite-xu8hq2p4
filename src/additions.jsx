@@ -528,60 +528,149 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
 // ═══════════════════════════════════════════════════════════════════════════════
 export function ClientProfilePanel({ d, onClose }) {
   const n = d.nutrition || {};
-  const rows = [
-    ["Name",     d.name],
-    ["Email",    d.email],
-    ["Phone",    d.phone || "—"],
-    ["Goal",     d.primaryGoal || "—"],
-    ["Plan",     d.planName || d.phase || "—"],
-    ["Duration", d.planDuration ? d.planDuration + " weeks" : "—"],
-    ["Phase",    d.phase || "—"],
-    ["Week",     "W" + d.week],
-    ["Weight",   d.weight  ? d.weight  + " kg" : "—"],
-    ["Waist",    d.waist   ? d.waist   + " cm" : "—"],
-    ["Body Fat", d.bodyFat ? d.bodyFat + "%"   : "—"],
-    ["Calories", n.calories ? n.calories + " kcal" : "—"],
-    ["Protein",  n.protein  ? n.protein  + "g" : "—"],
-    ["Carbs",    n.carbs    ? n.carbs    + "g" : "—"],
-    ["Fats",     n.fats     ? n.fats     + "g" : "—"],
-  ];
+  const initials = d.name?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+  const sleepInfo = (() => {
+    if (!d.wakeTime || !d.sleepTime) return null;
+    const [wH, wM] = d.wakeTime.split(":").map(Number);
+    const [sH, sM] = d.sleepTime.split(":").map(Number);
+    const wakeMin = wH * 60 + wM;
+    const sleepMin = sH * 60 + sM;
+    const total = wakeMin > sleepMin ? wakeMin - sleepMin : (1440 - sleepMin + wakeMin);
+    const hrs = Math.floor(total / 60); const mins = total % 60;
+    let color, msg, emoji;
+    if (hrs < 6)       { color = "var(--red)";    msg = "Critical! Less than 6hrs."; emoji = "🚨"; }
+    else if (hrs < 7)  { color = "var(--orange)"; msg = "Below optimal. Aim for 7+ hrs."; emoji = "⚠️"; }
+    else if (hrs <= 8) { color = "var(--green)";  msg = "Great! 7–8hrs is ideal."; emoji = "✅"; }
+    else               { color = "var(--blue)";   msg = "Good rest!"; emoji = "💙"; }
+    return { hrs, mins, color, msg, emoji };
+  })();
+
+  const Row = ({ label, value, color }) => (
+    <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid var(--border)", alignItems: "center" }}>
+      <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600 }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: color || "var(--text)" }}>{value || "—"}</span>
+    </div>
+  );
+
   return (
     <div className="profile-panel-overlay">
       <div className="profile-panel-bg" onClick={onClose} />
       <div className="profile-panel">
+
+        {/* Header */}
         <div className="profile-panel-hdr">
-          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16 }}>My Profile</div>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16 }}>Client Profile</div>
           <button className="xbtn" onClick={onClose}>✕</button>
         </div>
+
+        {/* Avatar + Basic Info */}
         <div style={{ padding: "22px 22px 16px", display: "flex", alignItems: "center", gap: 14, borderBottom: "1px solid var(--border)" }}>
-          <div className="profile-av-lg">{(d.name || "U").slice(0, 2).toUpperCase()}</div>
+          <div className="profile-av-lg">{initials}</div>
           <div>
             <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18 }}>{d.name}</div>
             <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{d.email}</div>
+            {d.phone && <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>📞 {d.phone}</div>}
             <div style={{ marginTop: 6 }}><span className="phase">{d.phase} — W{d.week}</span></div>
           </div>
         </div>
-        <div style={{ paddingTop: 8 }}>
-          {rows.map(([label, val]) => (
-            <div key={label} className="profile-row">
-              <span className="profile-row-label">{label}</span>
-              <span className="profile-row-val">{val}</span>
-            </div>
-          ))}
+
+        {/* Plan Details — filled by coach when adding client */}
+        <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>Plan Details</div>
+          <Row label="🎯 Primary Goal"  value={d.primaryGoal}                                    color="var(--orange)" />
+          <Row label="📋 Plan"          value={d.planName || d.phase}                            color="var(--green)"  />
+          <Row label="⏱ Duration"       value={d.planDuration ? d.planDuration + " weeks" : null} color="var(--blue)"   />
+          <Row label="📅 Week"          value={"Week " + d.week + " of " + (d.planDuration || "—")} color="var(--purple)" />
+          <Row label="⚖️ Weight"        value={d.weight   ? d.weight   + " kg" : null} />
+          <Row label="📉 Body Fat"      value={d.bodyFat  ? d.bodyFat  + "%"   : null} />
+          <Row label="📏 Waist"         value={d.waist    ? d.waist    + " cm" : null} />
         </div>
-        {(d.measurements && Object.values(d.measurements).some(v => v)) && (
-          <div style={{ margin: "14px 22px 0", background: "var(--s2)", borderRadius: 12, padding: 14, border: "1px solid var(--border)" }}>
-            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13, marginBottom: 10, color: "var(--muted2)" }}>Body Measurements</div>
+
+        {/* Macro Targets — set by coach */}
+        <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>🍽 Macro Targets</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {[["Cal", n.calories, "var(--green)", "kcal"], ["Protein", n.protein, "var(--purple)", "g"], ["Carbs", n.carbs, "var(--orange)", "g"], ["Fats", n.fats, "var(--red)", "g"], ["Fiber", n.fiber, "#34d399", "g"]].map(([l, v, co, u]) => (
+              <div key={l} style={{ padding: "5px 10px", borderRadius: 20, background: co + "18", color: co, border: "1px solid " + co + "44", fontSize: 11, fontWeight: 700 }}>
+                {l}: {v || "—"}{v ? u : ""}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Daily Routine — filled by client in My Profile */}
+        <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>⏰ Daily Routine <span style={{ fontSize: 9, color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>(client filled)</span></div>
+          <Row label="🌅 Wake-up Time"       value={d.wakeTime}                                                       color="var(--yellow)" />
+          <Row label="🌙 Sleep Time"         value={d.sleepTime}                                                      color="var(--blue)"   />
+          <Row label="💪 Training Time"      value={d.preferredTrainingTime}                                          color="var(--purple)" />
+          <Row label="👟 Avg Steps"          value={d.avgSteps ? Number(d.avgSteps).toLocaleString() + " steps" : null} color="var(--green)"  />
+          <Row label="🚽 Bowel Tracking"     value={d.bowelReport === true ? "Enabled" : d.bowelReport === false ? "Disabled" : null} color={d.bowelReport ? "var(--green)" : "var(--muted)"} />
+          {sleepInfo && (
+            <div style={{ marginTop: 10, padding: "10px 14px", background: sleepInfo.color + "14", border: "1px solid " + sleepInfo.color + "44", borderRadius: 10, fontSize: 12, fontWeight: 700, color: sleepInfo.color }}>
+              {sleepInfo.emoji} {sleepInfo.hrs}h {sleepInfo.mins}m sleep — {sleepInfo.msg}
+            </div>
+          )}
+        </div>
+
+        {/* Body Measurements — filled by client in My Profile */}
+        {d.measurements && Object.values(d.measurements).some(v => v) ? (
+          <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 10 }}>📏 Body Measurements <span style={{ fontSize: 9, fontWeight: 400, textTransform: "none" }}>(client filled)</span></div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-              {Object.entries(d.measurements || {}).map(([key, val]) => val ? (
-                <div key={key} style={{ background: "var(--s1)", borderRadius: 9, padding: "8px 10px", border: "1px solid var(--border)", textAlign: "center" }}>
-                  <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15, color: "var(--purple)" }}>{val}<span style={{ fontSize: 10, fontWeight: 500 }}>cm</span></div>
-                  <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "capitalize", marginTop: 3 }}>{key}</div>
+              {[
+                { key: "waist",  label: "Waist",  color: "var(--purple)" },
+                { key: "neck",   label: "Neck",   color: "var(--blue)"   },
+                { key: "chest",  label: "Chest",  color: "var(--green)"  },
+                { key: "calves", label: "Calves", color: "var(--orange)" },
+                { key: "thighs", label: "Thighs", color: "var(--red)"    },
+                { key: "arms",   label: "Arms",   color: "var(--yellow)" },
+              ].map(f => d.measurements[f.key] ? (
+                <div key={f.key} style={{ background: "var(--s2)", borderRadius: 10, padding: "10px", border: "1px solid var(--border)", textAlign: "center" }}>
+                  <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18, color: f.color }}>
+                    {d.measurements[f.key]}<span style={{ fontSize: 10, fontWeight: 500 }}>cm</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "capitalize", marginTop: 3 }}>{f.label}</div>
                 </div>
               ) : null)}
             </div>
           </div>
+        ) : (
+          <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 6 }}>📏 Body Measurements</div>
+            <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic" }}>Client hasn't filled measurements yet.</div>
+          </div>
         )}
+
+        {/* Blood Report — uploaded by client */}
+        <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>🩸 Blood Report <span style={{ fontSize: 9, fontWeight: 400, textTransform: "none" }}>(client uploaded)</span></div>
+          {d.bloodReport ? (
+            <div style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.3)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontWeight: 700, color: "var(--blue)", fontSize: 13 }}>📄 {d.bloodReport.name}</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>Uploaded: {d.bloodReport.uploadedAt}</div>
+              </div>
+              <a href={d.bloodReport.url} target="_blank" rel="noreferrer"
+                style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(59,130,246,.15)", color: "var(--blue)", fontSize: 12, fontWeight: 700, textDecoration: "none", border: "1px solid rgba(59,130,246,.3)" }}>
+                View PDF
+              </a>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic" }}>No blood report uploaded yet.</div>
+          )}
+        </div>
+
+        {/* Fallback if client hasn't filled anything yet */}
+        {!d.wakeTime && !d.sleepTime && !d.avgSteps && !(d.measurements && Object.values(d.measurements).some(v => v)) && !d.bloodReport && (
+          <div style={{ padding: "28px 22px", textAlign: "center", color: "var(--muted)" }}>
+            <div style={{ fontSize: 30, marginBottom: 10 }}>📋</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text)", marginBottom: 6 }}>Client profile not filled yet</div>
+            <div style={{ fontSize: 12 }}>Once the client fills their My Profile section, sleep time, measurements, and routine will appear here.</div>
+          </div>
+        )}
+
       </div>
     </div>
   );
