@@ -394,10 +394,68 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .sources-mini-tag{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid}
 
 @media(max-width:700px){
-  .g4{grid-template-columns:1fr 1fr}.g3{grid-template-columns:1fr 1fr}.fg{grid-template-columns:1fr}
-  .nav-tabs{display:none}.wk-grid{grid-template-columns:repeat(3,1fr)}
+  /* ── GENERAL ── */
+  .page{padding:16px 12px 80px}
+  .g4{grid-template-columns:1fr 1fr}
+  .g3{grid-template-columns:1fr 1fr}
+  .fg{grid-template-columns:1fr}
+  .g2{grid-template-columns:1fr}
+  .wk-grid{grid-template-columns:repeat(3,1fr)}
   .wk-grid-coach{grid-template-columns:repeat(4,1fr)}
   .addclient-body{padding:20px 16px 48px}
+  .modal{max-height:95vh;border-radius:16px 16px 0 0;position:fixed;bottom:0;left:0;right:0;margin:0;max-width:100%}
+
+  /* ── NAV — hide top tabs, show bottom bar ── */
+  .nav{height:52px;padding:0 14px}
+  .nav-tabs{display:none}
+  .nav-brand{font-size:14px}
+  .nav-right{gap:6px}
+
+  /* ── BOTTOM NAV ── */
+  .bottom-nav{
+    display:flex;
+    position:fixed;
+    bottom:0;left:0;right:0;
+    background:rgba(8,13,26,.97);
+    backdrop-filter:blur(16px);
+    border-top:1px solid var(--border);
+    z-index:100;
+    padding:6px 0 env(safe-area-inset-bottom);
+  }
+  .bottom-nav-btn{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;padding:6px 4px;border:none;background:transparent;
+    cursor:pointer;color:var(--muted);transition:all .18s;min-width:0;
+  }
+  .bottom-nav-btn.active{color:var(--green)}
+  .bottom-nav-btn .bn-icon{font-size:18px;line-height:1}
+  .bottom-nav-btn .bn-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+
+  /* ── CARDS / TYPOGRAPHY ── */
+  .card{padding:14px 12px}
+  .card-title{font-size:14px}
+  .mc-val{font-size:22px}
+  .tab-bar{gap:2px}
+  .tab-item{font-size:11px;padding:6px 4px;min-width:50px}
+
+  /* ── WORKOUT GRID ── */
+  .wk-card{padding:10px 4px}
+  .ex-card{padding:14px}
+
+  /* ── CHAT ── */
+  .chat-wrap{height:calc(100vh - 220px)}
+
+  /* ── FORMS ── */
+  .fi{font-size:16px} /* prevents iOS zoom on input focus */
+  .fsel{font-size:16px}
+}
+
+/* landscape mobile — show everything normally */
+@media(max-width:700px) and (orientation:landscape){
+  .nav-tabs{display:flex}
+  .bottom-nav{display:none}
+  .page{padding:16px 12px 24px}
+  .g4{grid-template-columns:repeat(4,1fr)}
 }
 ` + CSS_ADDITIONS;
 
@@ -2175,6 +2233,22 @@ export default function App() {
         ? <CoachDash coachUid={user.uid} coachEmail={user.email} coachName={user.name} tab={tab} setTab={setTab} toast={show} />
         : <ClientDash uid={user.uid} tab={tab} setTab={setTab} toast={show} />}
       {t && <div className={t.type === "error" ? "toast toast-e" : "toast toast-s"}>{t.msg}</div>}
+      {/* ── BOTTOM NAV (mobile only) ── */}
+<div className="bottom-nav">
+  {tabs.map(([k, l]) => {
+    const icons = {
+      home: "🏠", checkin: "📋", nutrition: "🍽", sources: "🥗",
+      training: "💪", photos: "📸", comparison: "📊", chat: "💬",
+      profile: "👤", clients: "👥", analytics: "📈"
+    };
+    return (
+      <button key={k} className={tab === k ? "bottom-nav-btn active" : "bottom-nav-btn"} onClick={() => setTab(k)}>
+        <span className="bn-icon">{icons[k] || "●"}</span>
+        <span className="bn-label">{l}</span>
+      </button>
+    );
+  })}
+</div>
     </div>
   );
 }
