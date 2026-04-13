@@ -134,7 +134,7 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .nav-logo:hover .nav-icon{transform:scale(1.1)}
 .nav-brand{font-family:'Outfit',sans-serif;font-weight:800;font-size:16px;color:var(--text)}
 .nav-brand span{color:var(--green)}
-.nav-tabs{display:flex;gap:2px}
+.nav-tabs{display:none;gap:2px}
 .nav-tab{padding:6px 13px;border-radius:8px;border:none;background:transparent;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--muted);transition:all .18s}
 .nav-tab:hover{background:var(--s2);color:var(--text)}
 .nav-tab.active{background:var(--green-bg);color:var(--green);border:1px solid var(--green-b)}
@@ -420,16 +420,16 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
     backdrop-filter:blur(16px);
     border-top:1px solid var(--border);
     z-index:100;
-    padding:6px 0 env(safe-area-inset-bottom);
+    padding:4px 0 env(safe-area-inset-bottom);
   }
   .bottom-nav-btn{
     flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:0;padding:10px 4px;border:none;background:transparent;
+    gap:0;padding:8px 2px;border:none;background:transparent;
     cursor:pointer;color:var(--muted);transition:all .18s;min-width:0;
+    border-radius:10px;margin:2px;
   }
-  .bottom-nav-btn .bn-icon{font-size:22px;line-height:1}
-  .bottom-nav-btn.active{color:var(--green)}
-  .bottom-nav-btn .bn-icon{font-size:18px;line-height:1}
+  .bottom-nav-btn.active{color:var(--green);background:var(--green-bg);}
+  .bottom-nav-btn .bn-icon{font-size:20px;line-height:1}
   .bottom-nav-btn .bn-label{display:none}
   /* ── CARDS / TYPOGRAPHY ── */
   .card{padding:14px 12px}
@@ -450,12 +450,44 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
   .fsel{font-size:16px}
 }
 
-/* landscape mobile — show everything normally */
+/* landscape mobile — use top nav, hide bottom */
 @media(max-width:700px) and (orientation:landscape){
   .nav-tabs{display:flex}
   .bottom-nav{display:none}
   .page{padding:16px 12px 24px}
   .g4{grid-template-columns:repeat(4,1fr)}
+}
+
+/* desktop — show bottom nav too */
+@media(min-width:701px){
+  .bottom-nav{
+    display:flex;
+    position:fixed;
+    bottom:0;left:0;right:0;
+    background:rgba(8,13,26,.97);
+    backdrop-filter:blur(16px);
+    border-top:1px solid var(--border);
+    z-index:100;
+    padding:6px 0;
+    max-width:960px;
+    margin:0 auto;
+    left:50%;
+    transform:translateX(-50%);
+    width:100%;
+    border-radius:16px 16px 0 0;
+    border-left:1px solid var(--border);
+    border-right:1px solid var(--border);
+  }
+  .bottom-nav-btn{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;padding:8px 4px;border:none;background:transparent;
+    cursor:pointer;color:var(--muted);transition:all .18s;min-width:0;
+    border-radius:10px;margin:2px;
+  }
+  .bottom-nav-btn.active{color:var(--green);background:var(--green-bg);}
+  .bottom-nav-btn .bn-icon{font-size:18px;line-height:1}
+  .bottom-nav-btn .bn-label{display:none}
+  .page{padding-bottom:80px}
 }
 ` + CSS_ADDITIONS;
 
@@ -1290,11 +1322,25 @@ function ClientDash({ uid, tab, setTab, toast }) {
   const [uploadPct, setUploadPct] = useState(0);
   const [showWelcome, setShowWelcome] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
+const [comparePose, setComparePose] = useState("Front");
+const [compareSelections, setCompareSelections] = useState([]);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, "clients", uid), snap => {
       if (!snap.exists()) { setLoading(false); return; }
       const data = snap.data();
+      // Auto-increment week every Monday
+      const today = new Date();
+      const isMonday = today.getDay() === 1;
+      const todayStr = today.toISOString().split("T")[0];
+      if (isMonday && data.lastWeekUpdate !== todayStr) {
+        const newWeek = (data.week || 1) + 1;
+        updateDoc(doc(db, "clients", uid), { 
+          week: newWeek, 
+          lastWeekUpdate: todayStr 
+        });
+      }
       if (prevRef.current) {
         const p = prevRef.current; const changed = {};
         const n = data.nutrition || {}, pn = p.nutrition || {};
@@ -1433,59 +1479,185 @@ function ClientDash({ uid, tab, setTab, toast }) {
   }
 
   if (tab === "photos") {
+    const POSES = ["Front", "Back", "Side"];
+    const currentWeek = d.week || 1;
     const clientPhotos = d.photos || [];
+    
+    // Get all weeks that have photos
+    const allWeeks = [];
+    for (let w = 1; w <= currentWeek; w++) allWeeks.push(w);
+
+    const getPhoto = (week, pose) => 
+      clientPhotos.find(p => p.week === week && p.pose === pose);
+
+    
+
+    const uploadPosePhoto = async (week, pose, file) => {
+      if (!file) return;
+      const isVideo = file.type.startsWith("video/");
+      if (file.size / (1024 * 1024) > 25) { toast(file.name + " too large (max 25MB)", "error"); return; }
+      setUploading(true); setUploadPct(0);
+      try {
+        const result = await cloudinaryUpload(file, pct => setUploadPct(pct));
+        const existing = clientPhotos.filter(p => !(p.week === week && p.pose === pose));
+        const newPhoto = {
+          url: result.secure_url,
+          publicId: result.public_id,
+          type: isVideo ? "video" : "photo",
+          pose,
+          week,
+          weekLabel: "Week " + week,
+          date: new Date().toLocaleDateString("en-IN"),
+          timestamp: new Date().toISOString(),
+        };
+        await updateDoc(doc(db, "clients", uid), { photos: [...existing, newPhoto] });
+        toast(`${pose} pose uploaded for Week ${week}!`, "success");
+      } catch (err) { toast("Upload failed: " + err.message, "error"); }
+      setUploading(false);
+    };
+
+    const deletePosePhoto = async (week, pose) => {
+      if (!window.confirm("Delete this photo?")) return;
+      await updateDoc(doc(db, "clients", uid), { 
+        photos: clientPhotos.filter(p => !(p.week === week && p.pose === pose)) 
+      });
+      toast("Deleted.", "success");
+    };
+
+    const toggleCompareSelection = (week, pose) => {
+      const key = week + "_" + pose;
+      const photo = getPhoto(week, pose);
+      if (!photo) return;
+      setCompareSelections(prev => {
+        const exists = prev.find(s => s.key === key);
+        if (exists) return prev.filter(s => s.key !== key);
+        if (prev.length >= 4) { toast("Max 4 photos to compare", "error"); return prev; }
+        return [...prev, { key, week, pose, url: photo.url }];
+      });
+    };
+
     return (
       <div className="page">
-        <div style={{ marginBottom: 20 }}><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Progress Photos & Videos</div></div>
-        <div className="card" style={{ marginBottom: 16 }}>
-          <label className="upload-area">
-            <input type="file" accept="image/*,video/*" multiple style={{ display: "none" }} disabled={uploading} onChange={e => { uploadMedia(Array.from(e.target.files)); e.target.value = ""; }} />
-            <div style={{ fontSize: 32, marginBottom: 8 }}>📸</div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: uploading ? "var(--muted)" : "var(--green)", marginBottom: 6 }}>{uploading ? `Uploading ${uploadPct}%` : "Upload Photos or Videos"}</div>
-            {uploading && <div className="prog-bar" style={{ maxWidth: 300, margin: "0 auto 10px" }}><div className="prog-fill" style={{ width: uploadPct + "%", background: "var(--green)" }} /></div>}
-            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}><span className="bdg bdg-g">Photos up to 25MB</span><span className="bdg bdg-b">Videos up to 100MB</span></div>
-          </label>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Progress Photos</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {compareSelections.length > 0 && (
+              <button className="btn btn-blue btn-sm" onClick={() => setCompareMode(true)}>
+                🔍 Compare ({compareSelections.length})
+              </button>
+            )}
+            {compareSelections.length > 0 && (
+              <button className="btn btn-s btn-sm" onClick={() => setCompareSelections([])}>
+                Clear
+              </button>
+            )}
+          </div>
         </div>
-        {clientPhotos.length > 0 && (() => {
-          // Group photos by week
-          const grouped = {};
-          [...clientPhotos].reverse().forEach(p => {
-            const key = p.weekLabel || "Week " + (p.week || 1);
-            if (!grouped[key]) grouped[key] = [];
-            grouped[key].push(p);
-          });
-          return (
-            <div>
-              {Object.entries(grouped).map(([weekLabel, photos]) => (
-                <div key={weekLabel} className="card" style={{ marginBottom: 16 }}>
-                  <div className="card-title">
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--green-bg)", border: "1.5px solid var(--green-b)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "var(--green)" }}>
-                        {weekLabel.replace("Week ", "W")}
-                      </div>
-                      <span>{weekLabel}</span>
-                    </div>
-                    <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>{photos.length} file{photos.length !== 1 ? "s" : ""}</span>
-                  </div>
-                  <div className="photo-grid">
-                    {photos.map((p, i) => (
-                      <div key={i} className="photo-item">
-                        <div onClick={() => setViewMedia(p)} style={{ width: "100%", height: "100%" }}>
-                          {p.type === "video"
-                            ? <><video src={p.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><div className="video-badge">Video</div></>
-                            : <img src={p.url} alt="" />}
-                        </div>
-                        <div className="photo-label">{p.date}</div>
-                        <button className="photo-del" onClick={e => { e.stopPropagation(); deleteMedia(p); }}>✕</button>
-                      </div>
-                    ))}
-                  </div>
+
+        {uploading && (
+          <div className="card" style={{ marginBottom: 14 }}>
+            <div style={{ fontWeight: 700, color: "var(--green)", marginBottom: 8 }}>Uploading {uploadPct}%</div>
+            <div className="prog-bar"><div className="prog-fill" style={{ width: uploadPct + "%", background: "var(--green)" }} /></div>
+          </div>
+        )}
+
+        {/* Tip */}
+        <div style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.25)", borderRadius: 12, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "var(--muted2)" }}>
+          💡 Upload Front, Back and Side pose photos each week. Tap any photo to select it for comparison (up to 4 at once).
+        </div>
+
+        {/* Week by week */}
+        {[...allWeeks].reverse().map(week => (
+          <div key={week} className="card" style={{ marginBottom: 16 }}>
+            <div className="card-title">
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: "50%", background: week === currentWeek ? "var(--green-bg)" : "var(--s2)", border: "1.5px solid " + (week === currentWeek ? "var(--green-b)" : "var(--border)"), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: week === currentWeek ? "var(--green)" : "var(--muted2)" }}>
+                  W{week}
                 </div>
-              ))}
+                <span>Week {week}</span>
+                {week === currentWeek && <span className="bdg bdg-g">Current</span>}
+              </div>
+              <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>
+                {POSES.filter(pose => getPhoto(week, pose)).length}/3 poses
+              </span>
             </div>
-          );
-        })()}
-        {viewMedia && <div className="ov" onClick={() => setViewMedia(null)}><div style={{ maxWidth: 560, width: "100%" }}>{viewMedia.type === "video" ? <video src={viewMedia.url} controls autoPlay style={{ width: "100%", borderRadius: 16 }} /> : <img src={viewMedia.url} alt="" style={{ width: "100%", borderRadius: 16 }} />}</div></div>}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+              {POSES.map(pose => {
+                const photo = getPhoto(week, pose);
+                const selectKey = week + "_" + pose;
+                const isSelected = compareSelections.find(s => s.key === selectKey);
+                return (
+                  <div key={pose}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6, textAlign: "center" }}>
+                      {pose === "Front" ? "🔵" : pose === "Back" ? "🟢" : "🟡"} {pose}
+                    </div>
+                    {photo ? (
+                      <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "3/4", border: isSelected ? "3px solid var(--blue)" : "2px solid var(--border)", cursor: "pointer", transition: "border-color .2s" }}
+                        onClick={() => toggleCompareSelection(week, pose)}>
+                        <img src={photo.url} alt={pose} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        {isSelected && (
+                          <div style={{ position: "absolute", top: 6, right: 6, background: "var(--blue)", color: "#fff", borderRadius: "50%", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>
+                            {compareSelections.findIndex(s => s.key === selectKey) + 1}
+                          </div>
+                        )}
+                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent,rgba(0,0,0,.7))", padding: "14px 6px 6px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                          <span style={{ color: "#fff", fontSize: 9, fontWeight: 600 }}>{photo.date}</span>
+                          <button onClick={e => { e.stopPropagation(); deletePosePhoto(week, pose); }} style={{ background: "rgba(248,113,113,.85)", color: "#fff", border: "none", borderRadius: 6, padding: "2px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>✕</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <label style={{ display: "block", borderRadius: 10, aspectRatio: "3/4", border: "2px dashed var(--border2)", background: "var(--s2)", cursor: week === currentWeek ? "pointer" : "default", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, opacity: week === currentWeek ? 1 : 0.4, transition: "all .2s" }}
+                        onMouseEnter={e => { if (week === currentWeek) e.currentTarget.style.borderColor = "var(--green)"; }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border2)"; }}>
+                        <input type="file" accept="image/*" style={{ display: "none" }} disabled={week !== currentWeek || uploading}
+                          onChange={e => { if (e.target.files[0]) uploadPosePhoto(week, pose, e.target.files[0]); e.target.value = ""; }} />
+                        <div style={{ fontSize: 20 }}>📷</div>
+                        <div style={{ fontSize: 10, color: week === currentWeek ? "var(--green)" : "var(--muted)", fontWeight: 700 }}>
+                          {week === currentWeek ? "Upload" : "No photo"}
+                        </div>
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* Compare Modal */}
+        {compareMode && compareSelections.length > 0 && (
+          <div className="ov" onClick={() => setCompareMode(false)}>
+            <div style={{ background: "var(--s1)", border: "1px solid var(--border2)", borderRadius: 18, width: "95%", maxWidth: 900, maxHeight: "92vh", overflow: "auto", padding: 20 }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18 }}>📊 Photo Comparison</div>
+                <button className="xbtn" onClick={() => setCompareMode(false)}>✕</button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(compareSelections.length, 2)}, 1fr)`, gap: 10 }}>
+                {compareSelections.map((s, i) => (
+                  <div key={i} style={{ borderRadius: 12, overflow: "hidden", border: "1px solid var(--border)" }}>
+                    <div style={{ padding: "8px 12px", background: "var(--s2)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>Week {s.week} — {s.pose}</span>
+                      <button onClick={() => setCompareSelections(prev => prev.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", color: "var(--red)", cursor: "pointer", fontSize: 14 }}>✕</button>
+                    </div>
+                    <img src={s.url} alt="" style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover" }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 14, padding: "10px 14px", background: "var(--s2)", borderRadius: 10, fontSize: 12, color: "var(--muted2)" }}>
+                Tap photos on the main screen to add/remove from comparison. Up to 4 photos at once.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {viewMedia && (
+          <div className="ov" onClick={() => setViewMedia(null)}>
+            <div style={{ maxWidth: 560, width: "100%" }}>
+              <img src={viewMedia.url} alt="" style={{ width: "100%", borderRadius: 16 }} />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1586,6 +1758,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
   const [viewMedia, setViewMedia] = useState(null);
   const [videoModal, setVideoModal] = useState(null);
   const [nc] = useState({});
+  const [clientProfileOpen, setClientProfileOpen] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, "clients"), where("coachId", "==", coachUid));
@@ -1678,6 +1851,8 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
   
 
   if (tab === "clients" && sel) {
+    // Add this line near the other state declarations inside CoachDash (around line ~590):
+
     const n = sel.nutrition || {}; const checkins = sel.weeklyCheckins || []; const media = sel.photos || [];
     const accessStatus = sel.accessStatus || "active";
     return (
@@ -1687,7 +1862,14 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
           <button className="btn btn-s btn-sm" onClick={() => { setSelId(null); setSel(null); }}>← Back</button>
-          <div className="av av-md av-g">{sel.avatar}</div>
+          <div className="av av-md av-g" onClick={() => setClientProfileOpen(true)} style={{ cursor: "pointer", transition: "transform .2s" }} title="View client profile"
+  onMouseEnter={e => e.currentTarget.style.transform = "scale(1.1)"}
+  onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
+  {sel.avatar}
+</div>
+{clientProfileOpen && (
+  <ClientProfilePanel d={sel} onClose={() => setClientProfileOpen(false)} />
+)}
           <div style={{ flex: 1 }}><div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 19 }}>{sel.name}</div><div style={{ fontSize: 12, color: "var(--muted)" }}>{sel.email}</div></div>
           <AccessBadge status={accessStatus} />
           <span className="live"><span className="dot" />Live</span>
