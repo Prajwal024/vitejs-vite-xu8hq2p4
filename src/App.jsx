@@ -542,7 +542,10 @@ function WelcomeSplash({ name, onDone }) {
 // ─── SPLASH ───────────────────────────────────────────────────────────────────
 function SplashScreen({ onDone }) {
   const [exiting, setExiting] = useState(false);
-  useEffect(() => { const t = setTimeout(() => { setExiting(true); setTimeout(onDone, 500); }, 2800); return () => clearTimeout(t); }, []);
+  useEffect(() => {
+    const t = setTimeout(() => { setExiting(true); setTimeout(onDone, 500); }, 1800);
+    return () => clearTimeout(t);
+  }, []);
   return (
     <div className={`splash ${exiting ? "exit" : ""}`}>
       <div className="splash-logo">FwA</div>
@@ -2119,7 +2122,7 @@ function LoginScreen({ onLogin, onSetup, coachExists }) {
       {err && <div className="alert alert-e">{err}</div>}
       <button className="auth-btn" onClick={login} disabled={ld}>{ld ? "Signing in..." : "Sign In"}</button>
       <div style={{ textAlign: "right", marginTop: 8 }}><button style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "var(--muted)" }} onClick={() => setShowForgot(true)}>Forgot password?</button></div>
-      {!coachExists && <div className="auth-switch">First time? <button onClick={onSetup}>Create coach account</button></div>}
+      
       {coachExists && <div style={{ textAlign: "center", marginTop: 14, fontSize: 11, color: "var(--muted)", padding: 10, background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)" }}>Contact Ankit for your login credentials.</div>}
     </div></div>
   );
@@ -2163,20 +2166,32 @@ export default function App() {
   useEffect(() => { getDoc(doc(db, "settings", "app")).then(s => { if (s.exists() && s.data().coachExists) setCoachExists(true); }).catch(() => {}); }, []);
 
   useEffect(() => {
-    return onAuthStateChanged(auth, async fu => {
+    const timeout = setTimeout(() => {
+      setAuthLoading(false);
+    }, 8000);
+
+    const unsub = onAuthStateChanged(auth, async fu => {
+      clearTimeout(timeout);
       if (fu) {
-        const uSnap = await getDoc(doc(db, "users", fu.uid));
-        if (uSnap.exists()) { setUser({ uid: fu.uid, email: fu.email, ...uSnap.data() }); setAuthLoading(false); return; }
-        const cSnap = await getDoc(doc(db, "clients", fu.uid));
-        if (cSnap.exists()) {
-          const data = cSnap.data();
-          if (data.accessStatus === "paused" || data.accessStatus === "terminated") { await signOut(auth); setUser(null); setAuthLoading(false); return; }
-          setUser({ uid: fu.uid, email: fu.email, role: "client", ...data }); setAuthLoading(false); return;
+        try {
+          const uSnap = await getDoc(doc(db, "users", fu.uid));
+          if (uSnap.exists()) { setUser({ uid: fu.uid, email: fu.email, ...uSnap.data() }); setAuthLoading(false); return; }
+          const cSnap = await getDoc(doc(db, "clients", fu.uid));
+          if (cSnap.exists()) {
+            const data = cSnap.data();
+            if (data.accessStatus === "paused" || data.accessStatus === "terminated") { await signOut(auth); setUser(null); setAuthLoading(false); return; }
+            setUser({ uid: fu.uid, email: fu.email, role: "client", ...data }); setAuthLoading(false); return;
+          }
+          await signOut(auth); setUser(null);
+        } catch(e) {
+          console.error("Auth load error:", e);
+          setUser(null);
         }
-        await signOut(auth); setUser(null);
       } else { setUser(null); }
       setAuthLoading(false);
     });
+
+    return () => { clearTimeout(timeout); unsub(); };
   }, []);
 
   const handleLogin = (u) => {
