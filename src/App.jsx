@@ -424,13 +424,13 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
   }
   .bottom-nav-btn{
     flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:3px;padding:6px 4px;border:none;background:transparent;
+    gap:0;padding:10px 4px;border:none;background:transparent;
     cursor:pointer;color:var(--muted);transition:all .18s;min-width:0;
   }
+  .bottom-nav-btn .bn-icon{font-size:22px;line-height:1}
   .bottom-nav-btn.active{color:var(--green)}
   .bottom-nav-btn .bn-icon{font-size:18px;line-height:1}
-  .bottom-nav-btn .bn-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
-
+  .bottom-nav-btn .bn-label{display:none}
   /* ── CARDS / TYPOGRAPHY ── */
   .card{padding:14px 12px}
   .card-title{font-size:14px}
