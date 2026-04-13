@@ -81,205 +81,10 @@ export const CSS_ADDITIONS = `
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENHANCED FOOD LOG — client logs per-meal calories, charts update from logs only
 // ═══════════════════════════════════════════════════════════════════════════════
-const CALORIE_NINJA_KEY = "Yu9vwupShgtAB4qS2Srzb95b4e2JsJ9SYOdTIiMB";
-
-function FoodSearch({ onSelect }) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
-  const [selectedFood, setSelectedFood] = useState(null);
-  const debounceRef = useRef(null);
-
-  const search = async (q) => {
-    if (!q.trim() || q.length < 2) { setResults([]); setSearched(false); return; }
-    setLoading(true);
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "anthropic-dangerous-direct-browser-access": "true"
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          messages: [{
-            role: "user",
-            content: `You are a nutrition database. Return ONLY a valid JSON array for food: "${q}".
-
-No markdown, no explanation, just the JSON array.
-
-Example format:
-[{"name":"Chicken Breast Boiled","serving":"100g","cal":165,"protein":31,"carbs":0,"fats":3.6,"fiber":0}]
-
-Return 5-6 accurate results for "${q}" including Indian variations if relevant. Only JSON array.`
-          }]
-        })
-      });
-
-      if (!res.ok) {
-        const err = await res.text();
-        console.error("API error:", res.status, err);
-        setResults([]);
-        setSearched(true);
-        setLoading(false);
-        return;
-      }
-
-      const data = await res.json();
-      console.log("API response:", data);
-      
-      const text = data.content?.[0]?.text || "[]";
-      console.log("Text:", text);
-      
-      const cleaned = text.replace(/```json/g, "").replace(/```/g, "").trim();
-      const parsed = JSON.parse(cleaned);
-      
-      const items = parsed.map((item, i) => ({
-        fdcId: "ai_" + i + "_" + Date.now(),
-        name: item.name,
-        brand: "",
-        serving: item.serving || "100g",
-        cal: Math.round(item.cal || 0),
-        protein: parseFloat(item.protein || 0),
-        carbs: parseFloat(item.carbs || 0),
-        fats: parseFloat(item.fats || 0),
-        fiber: parseFloat(item.fiber || 0),
-      })).filter(f => f.cal > 0);
-      
-      setResults(items);
-      setSearched(true);
-    } catch (err) {
-      console.error("Search failed:", err);
-      setResults([]);
-      setSearched(true);
-    }
-    setLoading(false);
-  };
-  const handleChange = (e) => {
-    const val = e.target.value;
-    setQuery(val);
-    setSelectedFood(null);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => search(val), 600);
-  };
-
-  const handleSelect = (food) => {
-    setSelectedFood(food);
-    setQuery(food.name);
-    setResults([]);
-    onSelect(food);
-  };
-
-  return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 6 }}>
-        🔍 Search Food Database
-      </div>
-
-      {/* Search tip */}
-      <div style={{ fontSize: 11, color: "var(--blue)", marginBottom: 8, padding: "6px 10px", background: "rgba(59,130,246,.08)", borderRadius: 8, border: "1px solid rgba(59,130,246,.2)" }}>
-      💡 Type any food — <strong>"paneer bhurji"</strong>, <strong>"chicken breast boiled"</strong>, <strong>"dal tadka"</strong>, <strong>"brown rice"</strong>
-      </div>
-
-      <div style={{ position: "relative" }}>
-        <input
-          className="fi"
-          placeholder='e.g. "boiled chicken breast 200g" or "paneer 100g" or "2 chapati"'
-          value={query}
-          onChange={handleChange}
-          style={{ paddingRight: 40 }}
-          onKeyDown={e => { if (e.key === "Enter") { if (debounceRef.current) clearTimeout(debounceRef.current); search(query); } }}
-        />
-        {loading && (
-          <div style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", width: 16, height: 16, borderRadius: "50%", border: "2px solid var(--border)", borderTopColor: "var(--green)", animation: "sp .7s linear infinite" }} />
-        )}
-        {!loading && query && (
-          <button onClick={() => { setQuery(""); setResults([]); setSearched(false); setSelectedFood(null); }}
-            style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--muted)", fontSize: 16 }}>✕</button>
-        )}
-      </div>
-
-      {/* Quick search chips */}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-      {["chicken breast boiled", "paneer", "dal tadka", "brown rice", "whole wheat roti", "oats", "boiled eggs", "sweet potato", "curd", "banana"].map(s => (
-          <button key={s} onClick={() => { setQuery(s); if (debounceRef.current) clearTimeout(debounceRef.current); search(s); }}
-            style={{ padding: "3px 10px", borderRadius: 20, fontSize: 10, fontWeight: 600, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted2)", cursor: "pointer", transition: "all .15s" }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--green)"; e.currentTarget.style.color = "var(--green)"; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted2)"; }}>
-            {s}
-          </button>
-        ))}
-      </div>
-
-      {/* Selected food confirmation */}
-      {selectedFood && (
-        <div style={{ marginTop: 10, padding: "10px 14px", background: "var(--green-bg)", border: "1px solid var(--green-b)", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>✓ {selectedFood.name}</div>
-            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Per {selectedFood.serving} — values auto-filled below</div>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--purple)" }}>P {selectedFood.protein}g</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--orange)" }}>C {selectedFood.carbs}g</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--red)" }}>F {selectedFood.fats}g</span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--green)" }}>{selectedFood.cal} kcal</span>
-          </div>
-        </div>
-      )}
-
-      {/* Results */}
-      {results.length > 0 && (
-        <div style={{ marginTop: 8, background: "var(--s1)", border: "1px solid var(--border2)", borderRadius: 12, overflow: "hidden", maxHeight: 300, overflowY: "auto", boxShadow: "0 8px 32px rgba(0,0,0,.4)" }}>
-          <div style={{ padding: "8px 14px", background: "var(--s3)", borderBottom: "1px solid var(--border)", fontSize: 10, fontWeight: 700, color: "var(--muted2)", textTransform: "uppercase" }}>
-            {results.length} result{results.length !== 1 ? "s" : ""} found
-          </div>
-          {results.map((food, i) => (
-            <div key={food.fdcId} onClick={() => handleSelect(food)}
-              style={{ padding: "12px 14px", borderBottom: i < results.length - 1 ? "1px solid var(--border)" : "none", cursor: "pointer", transition: "background .15s" }}
-              onMouseEnter={e => e.currentTarget.style.background = "var(--s2)"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text)", textTransform: "capitalize" }}>{food.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>per {food.serving}</div>
-                </div>
-                <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 18, color: "var(--green)" }}>{food.cal}</div>
-                  <div style={{ fontSize: 9, color: "var(--muted)", fontWeight: 600 }}>KCAL</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                {[["Protein", food.protein, "var(--purple)"], ["Carbs", food.carbs, "var(--orange)"], ["Fat", food.fats, "var(--red)"], ["Fiber", food.fiber, "#34d399"]].map(([l, v, co]) => (
-                  <div key={l} style={{ background: co + "18", border: "1px solid " + co + "44", borderRadius: 6, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: co }}>
-                    {l[0]} {v}g
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {searched && results.length === 0 && !loading && (
-        <div style={{ marginTop: 8, padding: "10px 14px", background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12, color: "var(--muted)" }}>
-          No results. Try being more specific — e.g. "boiled chicken 100g" or "1 cup rice"
-        </div>
-      )}
-
-      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
-      🤖 AI-Powered Nutrition Database · Accurate Indian & International foods · Type any food name
-      </div>
-    </div>
-  );
-}
 export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPlan }) {
   const today = new Date().toLocaleDateString("en-IN");
   const meals = mealPlan || DEFAULT_MEALS_AC;
 
-  // ── Load today's per-meal logs from Firestore ──
-  // Structure: { "Breakfast": { cal, protein, carbs, fats, note }, ... }
   const getTodayMealLogs = (mealLogs) => {
     if (!mealLogs) return {};
     if (Array.isArray(mealLogs)) return mealLogs.find(l => l.date === today)?.mealData || {};
@@ -287,20 +92,18 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
   };
 
   const [mealLogs, setMealLogs] = useState(() => getTodayMealLogs(d.foodLogs));
-  const [activeMeal, setActiveMeal] = useState(null); // meal name being edited
+  const [activeMeal, setActiveMeal] = useState(null);
   const [inputVals, setInputVals] = useState({ cal: "", protein: "", carbs: "", fats: "" });
   const [saving, setSaving] = useState(false);
   const [mfpTab, setMfpTab] = useState("calories");
 
   useEffect(() => { setMealLogs(getTodayMealLogs(d.foodLogs)); }, [d.foodLogs]);
 
-  // ── Targets from coach ──
   const goalCal     = targetNutrition?.calories || meals.flatMap(m => m.items).reduce((a, i) => a + (i.cal || 0), 0) || 2000;
   const goalProtein = targetNutrition?.protein  || 0;
   const goalCarbs   = targetNutrition?.carbs    || 0;
   const goalFats    = targetNutrition?.fats     || 0;
 
-  // ── Totals from LOGGED data only (not plan) ──
   const loggedCal     = Object.values(mealLogs).reduce((a, m) => a + (parseFloat(m?.cal)     || 0), 0);
   const loggedProtein = Object.values(mealLogs).reduce((a, m) => a + (parseFloat(m?.protein) || 0), 0);
   const loggedCarbs   = Object.values(mealLogs).reduce((a, m) => a + (parseFloat(m?.carbs)   || 0), 0);
@@ -313,7 +116,6 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
   const statusColor = isSurplus ? "var(--red)" : isDeficit ? "var(--orange)" : loggedCal > 0 ? "var(--green)" : "var(--muted)";
   const statusLabel = loggedCal === 0 ? "Nothing logged yet" : isSurplus ? `+${diff} kcal surplus` : isDeficit ? `${Math.abs(diff)} kcal deficit` : "On target ✅";
 
-  // ── Open meal log input ──
   const openMeal = (meal) => {
     const existing = mealLogs[meal.name] || {};
     const planCal     = meal.items.reduce((a, i) => a + (i.cal || 0), 0);
@@ -329,29 +131,25 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
     setActiveMeal(meal.name);
   };
 
-  // ── Save meal log ──
   const saveMealLog = async () => {
     if (!activeMeal) return;
     setSaving(true);
     const updated = {
       ...mealLogs,
       [activeMeal]: {
-        cal:     parseFloat(inputVals.cal)     || 0,
-        protein: parseFloat(inputVals.protein) || 0,
-        carbs:   parseFloat(inputVals.carbs)   || 0,
-        fats:    parseFloat(inputVals.fats)    || 0,
+        cal:      parseFloat(inputVals.cal)     || 0,
+        protein:  parseFloat(inputVals.protein) || 0,
+        carbs:    parseFloat(inputVals.carbs)   || 0,
+        fats:     parseFloat(inputVals.fats)    || 0,
         loggedAt: new Date().toISOString(),
       }
     };
     setMealLogs(updated);
-    // Persist: keep existing structure but update mealData for today
     const existingLogs = Array.isArray(d.foodLogs) ? d.foodLogs : [];
     const todayEntry   = existingLogs.find(l => l.date === today) || { date: today, items: [] };
-    const newLogs = [
-      ...existingLogs.filter(l => l.date !== today),
-      { ...todayEntry, mealData: updated },
-    ];
-    await updateDoc(doc(db, "clients", uid), { foodLogs: newLogs });
+    await updateDoc(doc(db, "clients", uid), {
+      foodLogs: [...existingLogs.filter(l => l.date !== today), { ...todayEntry, mealData: updated }]
+    });
     toast(`${activeMeal} logged!`, "success");
     setActiveMeal(null);
     setSaving(false);
@@ -369,34 +167,30 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
     toast("Log cleared", "success");
   };
 
-  // ── Chart data — only logged meals ──
   const MEAL_COLORS = ["#3b82f6", "#a78bfa", "#fb923c", "#22c55e", "#f87171", "#fbbf24"];
-  const svgR    = 60;
-  const svgCirc = 2 * Math.PI * svgR;
+  const svgR = 60; const svgCirc = 2 * Math.PI * svgR;
 
-  // Calories donut — slices only for logged meals
   const calSlices = (() => {
     const logged = meals.filter(m => mealLogs[m.name]?.cal > 0);
     if (logged.length === 0) return [];
     const total = logged.reduce((a, m) => a + (mealLogs[m.name]?.cal || 0), 0) || 1;
     let offset = 0;
     return logged.map((m, i) => {
-      const idx   = meals.indexOf(m);
-      const cal   = mealLogs[m.name]?.cal || 0;
-      const dash  = (cal / total) * svgCirc;
+      const idx  = meals.indexOf(m);
+      const cal  = mealLogs[m.name]?.cal || 0;
+      const dash = (cal / total) * svgCirc;
       const slice = { dash, offset, color: MEAL_COLORS[idx % MEAL_COLORS.length], name: m.name, cal };
       offset += dash;
       return slice;
     });
   })();
 
-  // Macros donut — only from logged data
   const macroData = [
     { label: "Protein", val: loggedProtein, goal: goalProtein, color: "var(--purple)", calVal: loggedProtein * 4 },
     { label: "Carbs",   val: loggedCarbs,   goal: goalCarbs,   color: "var(--orange)", calVal: loggedCarbs * 4   },
     { label: "Fat",     val: loggedFats,    goal: goalFats,    color: "var(--red)",    calVal: loggedFats * 9    },
   ];
-  const macroTotal = macroData.reduce((a, m) => a + m.calVal, 0) || 1;
+  const macroTotal  = macroData.reduce((a, m) => a + m.calVal, 0) || 1;
   const macroSlices = (() => {
     let offset = 0;
     return macroData.map(m => {
@@ -407,7 +201,6 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
     });
   })();
 
-  // Nutrients table data
   const nutrients = [
     { label: "Calories",      logged: loggedCal,     goal: goalCal,     color: "var(--green)"  },
     { label: "Protein",       logged: loggedProtein, goal: goalProtein, color: "var(--purple)" },
@@ -420,11 +213,29 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
   return (
     <div style={{ marginBottom: 16 }}>
 
-      {/* ── TOP SUMMARY: Coach Plan vs Your Actual ── */}
+      {/* ── HOW TO LOG BANNER ── */}
+      <div style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.25)", borderRadius: 12, padding: "12px 16px", marginBottom: 14, display: "flex", alignItems: "flex-start", gap: 12 }}>
+        <div style={{ fontSize: 22, flexShrink: 0 }}>💡</div>
+        <div>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13, color: "var(--blue)", marginBottom: 4 }}>How to log your food</div>
+          <div style={{ fontSize: 12, color: "var(--muted2)", lineHeight: 1.6 }}>
+            Log your meals in <strong style={{ color: "var(--text)" }}>MyFitnessPal</strong> or <strong style={{ color: "var(--text)" }}>Cronometer</strong> for accurate Indian food data, then enter your meal totals below. Takes 30 seconds!
+          </div>
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            {[["MyFitnessPal", "https://www.myfitnesspal.com", "var(--blue)"], ["Cronometer", "https://cronometer.com", "var(--purple)"]].map(([name, url, color]) => (
+              <a key={name} href={url} target="_blank" rel="noreferrer"
+                style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: color + "18", color, border: "1px solid " + color + "44", textDecoration: "none" }}>
+                Open {name} →
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── TOP SUMMARY ── */}
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="card-title">Today's Food Log — {today}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-          {/* Coach plan */}
           <div style={{ background: "rgba(59,130,246,.06)", border: "1px solid rgba(59,130,246,.25)", borderRadius: 12, padding: 14 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--blue)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>📋 Coach's Plan</div>
             <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 26, color: "var(--blue)", lineHeight: 1 }}>{goalCal}<span style={{ fontSize: 12, fontWeight: 500, marginLeft: 4 }}>kcal</span></div>
@@ -434,7 +245,6 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
               ))}
             </div>
           </div>
-          {/* Your actual */}
           <div style={{ background: isSurplus ? "rgba(248,113,113,.06)" : isDeficit ? "rgba(251,146,60,.06)" : loggedCal > 0 ? "rgba(34,197,94,.06)" : "var(--s2)", border: "1px solid " + (isSurplus ? "rgba(248,113,113,.3)" : isDeficit ? "rgba(251,146,60,.3)" : loggedCal > 0 ? "var(--green-b)" : "var(--border)"), borderRadius: 12, padding: 14 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: statusColor, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>🍽 Your Actual</div>
             <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 26, color: statusColor, lineHeight: 1 }}>{Math.round(loggedCal)}<span style={{ fontSize: 12, fontWeight: 500, marginLeft: 4 }}>kcal</span></div>
@@ -446,7 +256,6 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
             </div>
           </div>
         </div>
-        {/* Progress bar */}
         <div style={{ height: 8, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}>
           <div style={{ height: "100%", borderRadius: 4, width: Math.min(pct, 100) + "%", background: isSurplus ? "var(--red)" : isDeficit ? "var(--orange)" : "var(--green)", transition: "width .8s cubic-bezier(.4,0,.2,1)" }} />
         </div>
@@ -457,27 +266,27 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
         </div>
       </div>
 
-      {/* ── PER MEAL LOGGING CARDS ── */}
+      {/* ── PER MEAL LOGGING ── */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 10 }}>
-          Log Your Meals <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>— tap a meal to log what you actually ate</span>
+          Log Your Meals <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>— enter totals from MFP or Cronometer</span>
         </div>
         {meals.map((meal, mi) => {
-          const planCal   = meal.items.reduce((a, i) => a + (i.cal || 0), 0);
-          const logged    = mealLogs[meal.name];
-          const isLogged  = !!logged;
+          const planCal  = meal.items.reduce((a, i) => a + (i.cal || 0), 0);
+          const logged   = mealLogs[meal.name];
+          const isLogged = !!logged;
           const actualCal = logged?.cal || 0;
-          const calDiff   = actualCal - planCal;
-          const color     = MEAL_COLORS[mi % MEAL_COLORS.length];
+          const calDiff  = actualCal - planCal;
+          const color    = MEAL_COLORS[mi % MEAL_COLORS.length];
           const isEditing = activeMeal === meal.name;
 
           return (
             <div key={mi} style={{ background: "var(--s1)", border: "1.5px solid " + (isLogged ? color + "55" : "var(--border)"), borderRadius: 12, marginBottom: 10, overflow: "hidden", transition: "border-color .2s" }}>
-              {/* Meal header */}
+              {/* Header */}
               <div style={{ padding: "12px 14px", background: isLogged ? color + "0a" : "var(--s2)", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
                 onClick={() => isEditing ? setActiveMeal(null) : openMeal(meal)}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: isLogged ? color : "var(--border)", flexShrink: 0, transition: "background .2s" }} />
+                  <div style={{ width: 10, height: 10, borderRadius: "50%", background: isLogged ? color : "var(--border)", flexShrink: 0 }} />
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{meal.name}</div>
                     <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>{meal.time} · Plan: {planCal} kcal</div>
@@ -486,14 +295,8 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   {isLogged && (
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16, color }}>
-                        {actualCal} kcal
-                      </div>
-                      {calDiff !== 0 && (
-                        <div style={{ fontSize: 10, fontWeight: 700, color: calDiff > 0 ? "var(--red)" : "var(--green)" }}>
-                          {calDiff > 0 ? "+" : ""}{calDiff} vs plan
-                        </div>
-                      )}
+                      <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16, color }}>{actualCal} kcal</div>
+                      {calDiff !== 0 && <div style={{ fontSize: 10, fontWeight: 700, color: calDiff > 0 ? "var(--red)" : "var(--green)" }}>{calDiff > 0 ? "+" : ""}{calDiff} vs plan</div>}
                     </div>
                   )}
                   <div style={{ padding: "5px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, border: "1.5px solid", borderColor: isLogged ? color : "var(--border2)", background: isLogged ? color + "18" : "var(--s2)", color: isLogged ? color : "var(--muted2)" }}>
@@ -502,11 +305,11 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                 </div>
               </div>
 
-              {/* Plan items list */}
+              {/* Plan items */}
               <div style={{ padding: "8px 14px 4px", borderTop: "1px solid var(--border)" }}>
                 {meal.items.map((item, ii) => (
                   <div key={ii} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "5px 0", borderBottom: ii < meal.items.length - 1 ? "1px solid var(--border)" : "none", opacity: isLogged ? 0.6 : 1 }}>
-                    <span style={{ color: "var(--text)" }}>{item.food} <span style={{ color: "var(--muted)" }}>{item.amount}</span></span>
+                    <span>{item.food} <span style={{ color: "var(--muted)" }}>{item.amount}</span></span>
                     <div style={{ display: "flex", gap: 8 }}>
                       <span style={{ color: "var(--purple)" }}>{item.protein}g P</span>
                       <span style={{ color: "var(--orange)" }}>{item.carbs}g C</span>
@@ -517,18 +320,18 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                 ))}
               </div>
 
-              {/* Input form when editing */}
+              {/* Input form */}
               {isEditing && (
-                <div style={{ padding: "14px", borderTop: "1px solid var(--border)", background: color + "06" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: color, marginBottom: 10 }}>
+                <div style={{ padding: 14, borderTop: "1px solid var(--border)", background: color + "06" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 10 }}>
                     Enter what you actually ate for {meal.name}:
                   </div>
-                  <FoodSearch onSelect={(food) => setInputVals({
-                    cal: food.cal,
-                    protein: food.protein,
-                    carbs: food.carbs,
-                    fats: food.fats,
-                  })} />
+
+                  {/* MFP tip */}
+                  <div style={{ background: "rgba(59,130,246,.06)", border: "1px solid rgba(59,130,246,.2)", borderRadius: 9, padding: "8px 12px", marginBottom: 12, fontSize: 11, color: "var(--muted2)", lineHeight: 1.5 }}>
+                    💡 Log this meal in <strong style={{ color: "var(--blue)" }}>MyFitnessPal</strong> or <strong style={{ color: "var(--purple)" }}>Cronometer</strong>, then copy the totals below.
+                  </div>
+
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 12 }}>
                     {[["Calories", "cal", "var(--green)"], ["Protein g", "protein", "var(--purple)"], ["Carbs g", "carbs", "var(--orange)"], ["Fats g", "fats", "var(--red)"]].map(([l, k, co]) => (
                       <div key={k}>
@@ -539,44 +342,41 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                       </div>
                     ))}
                   </div>
-                  {/* Quick fill buttons */}
+
+                  {/* Quick fill */}
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
                     <span style={{ fontSize: 11, color: "var(--muted)", alignSelf: "center" }}>Quick fill:</span>
                     {[50, 75, 100, 125].map(pct => {
-                      const planCal2    = meal.items.reduce((a, i) => a + (i.cal || 0), 0);
-                      const planProtein = meal.items.reduce((a, i) => a + (i.protein || 0), 0);
-                      const planCarbs   = meal.items.reduce((a, i) => a + (i.carbs || 0), 0);
-                      const planFats    = meal.items.reduce((a, i) => a + (i.fats || 0), 0);
+                      const pCal = meal.items.reduce((a, i) => a + (i.cal || 0), 0);
+                      const pPro = meal.items.reduce((a, i) => a + (i.protein || 0), 0);
+                      const pCrb = meal.items.reduce((a, i) => a + (i.carbs || 0), 0);
+                      const pFat = meal.items.reduce((a, i) => a + (i.fats || 0), 0);
                       return (
-                        <button key={pct} onClick={() => setInputVals({ cal: Math.round(planCal2 * pct / 100), protein: Math.round(planProtein * pct / 100), carbs: Math.round(planCarbs * pct / 100), fats: Math.round(planFats * pct / 100) })}
+                        <button key={pct} onClick={() => setInputVals({ cal: Math.round(pCal * pct / 100), protein: Math.round(pPro * pct / 100), carbs: Math.round(pCrb * pct / 100), fats: Math.round(pFat * pct / 100) })}
                           style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted2)", cursor: "pointer" }}>
                           {pct}%
                         </button>
                       );
                     })}
                     <button onClick={() => {
-                      const planCal2    = meal.items.reduce((a, i) => a + (i.cal || 0), 0);
-                      const planProtein = meal.items.reduce((a, i) => a + (i.protein || 0), 0);
-                      const planCarbs   = meal.items.reduce((a, i) => a + (i.carbs || 0), 0);
-                      const planFats    = meal.items.reduce((a, i) => a + (i.fats || 0), 0);
-                      setInputVals({ cal: planCal2, protein: planProtein, carbs: planCarbs, fats: planFats });
+                      const pCal = meal.items.reduce((a, i) => a + (i.cal || 0), 0);
+                      const pPro = meal.items.reduce((a, i) => a + (i.protein || 0), 0);
+                      const pCrb = meal.items.reduce((a, i) => a + (i.carbs || 0), 0);
+                      const pFat = meal.items.reduce((a, i) => a + (i.fats || 0), 0);
+                      setInputVals({ cal: pCal, protein: pPro, carbs: pCrb, fats: pFat });
                     }} style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, border: "1.5px solid var(--green-b)", background: "var(--green-bg)", color: "var(--green)", cursor: "pointer" }}>
                       ✓ Ate as planned
                     </button>
                   </div>
+
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button className="btn btn-p" style={{ flex: 1 }} onClick={saveMealLog} disabled={saving}>
-                      {saving ? "Saving..." : `Save ${meal.name}`}
-                    </button>
-                    {isLogged && (
-                      <button className="btn btn-d btn-sm" onClick={() => { setActiveMeal(null); clearMealLog(meal.name); }}>Clear</button>
-                    )}
+                    <button className="btn btn-p" style={{ flex: 1 }} onClick={saveMealLog} disabled={saving}>{saving ? "Saving..." : `Save ${meal.name}`}</button>
+                    {isLogged && <button className="btn btn-d btn-sm" onClick={() => { setActiveMeal(null); clearMealLog(meal.name); }}>Clear</button>}
                     <button className="btn btn-s btn-sm" onClick={() => setActiveMeal(null)}>Cancel</button>
                   </div>
                 </div>
               )}
 
-              {/* Progress bar for logged meal */}
               {isLogged && !isEditing && (
                 <div style={{ height: 4, background: "var(--border)" }}>
                   <div style={{ height: "100%", width: Math.min((actualCal / (planCal || 1)) * 100, 130) + "%", background: calDiff > 50 ? "var(--red)" : calDiff < -50 ? "var(--orange)" : color, transition: "width .8s ease" }} />
@@ -587,7 +387,7 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
         })}
       </div>
 
-      {/* ── MFP-STYLE CHARTS (only show once at least one meal logged) ── */}
+      {/* ── CHARTS ── */}
       <div className="card" style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", borderBottom: "1px solid var(--border)", marginBottom: 16 }}>
           {[["calories", "Calories"], ["nutrients", "Nutrients"], ["macros", "Macros"]].map(([key, label]) => (
@@ -602,15 +402,13 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
           <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--muted)" }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>📊</div>
             <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 15, color: "var(--text)", marginBottom: 6 }}>No data yet</div>
-            <div style={{ fontSize: 13 }}>Log your meals above to see charts populate with your actual intake.</div>
+            <div style={{ fontSize: 13 }}>Log your meals above to see charts update.</div>
           </div>
         ) : (
           <>
-            {/* ── CALORIES TAB ── */}
             {mfpTab === "calories" && (
               <div>
                 <div style={{ textAlign: "center", fontSize: 12, color: "var(--muted)", marginBottom: 14, fontWeight: 600 }}>📅 Today — {today}</div>
-                {/* Donut */}
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
                   <div style={{ position: "relative", width: 160, height: 160 }}>
                     <svg width="160" height="160" style={{ transform: "rotate(-90deg)" }}>
@@ -621,22 +419,20 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                       ))}
                     </svg>
                     <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                      <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 20, color: statusColor, lineHeight: 1 }}>{Math.round(loggedCal)}</div>
+                      <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 20, color: statusColor }}>{Math.round(loggedCal)}</div>
                       <div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600 }}>/ {goalCal} kcal</div>
                     </div>
                   </div>
                 </div>
-                {/* Legend */}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", marginBottom: 16 }}>
                   {calSlices.map((s, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
-                      <div style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
+                      <div style={{ width: 10, height: 10, borderRadius: 3, background: s.color }} />
                       <span style={{ color: "var(--muted2)" }}>{s.name}</span>
                       <span style={{ fontWeight: 700, color: s.color }}>{Math.round(s.cal)} kcal</span>
                     </div>
                   ))}
                 </div>
-                {/* Status bar */}
                 <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: 10, background: isSurplus ? "rgba(248,113,113,.08)" : isDeficit ? "rgba(251,146,60,.08)" : "rgba(34,197,94,.08)", border: "1px solid " + (isSurplus ? "rgba(248,113,113,.3)" : isDeficit ? "rgba(251,146,60,.3)" : "var(--green-b)") }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: statusColor }}>{statusLabel}</span>
@@ -646,38 +442,6 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                     <div style={{ height: "100%", borderRadius: 4, width: Math.min(pct, 100) + "%", background: isSurplus ? "var(--red)" : isDeficit ? "var(--orange)" : "var(--green)", transition: "width .8s ease" }} />
                   </div>
                 </div>
-                {/* Per-meal bar list */}
-                <div style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 10 }}>Per Meal</div>
-                  {meals.map((meal, i) => {
-                    const planCal2  = meal.items.reduce((a, item) => a + (item.cal || 0), 0);
-                    const logged2   = mealLogs[meal.name];
-                    const actualCal2 = logged2?.cal || 0;
-                    const color2    = MEAL_COLORS[i % MEAL_COLORS.length];
-                    const pctMeal   = goalCal > 0 ? Math.round((actualCal2 / goalCal) * 100) : 0;
-                    return (
-                      <div key={i} style={{ marginBottom: 10, background: "var(--s2)", borderRadius: 10, padding: "10px 12px", border: "1px solid var(--border)", opacity: logged2 ? 1 : 0.5 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                          <div style={{ width: 10, height: 10, borderRadius: 3, background: logged2 ? color2 : "var(--border)", flexShrink: 0 }} />
-                          <div style={{ flex: 1 }}>
-                            <span style={{ fontSize: 13, fontWeight: 700 }}>{meal.name}</span>
-                            <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 8 }}>Plan: {planCal2} kcal</span>
-                          </div>
-                          <div style={{ textAlign: "right" }}>
-                            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 14, color: logged2 ? color2 : "var(--muted)" }}>
-                              {logged2 ? actualCal2 + " kcal" : "Not logged"}
-                            </div>
-                            {logged2 && <div style={{ fontSize: 10, color: "var(--muted)" }}>{pctMeal}% of goal</div>}
-                          </div>
-                        </div>
-                        <div style={{ height: 5, borderRadius: 3, background: "var(--border)", overflow: "hidden" }}>
-                          <div style={{ height: "100%", borderRadius: 3, width: logged2 ? Math.min((actualCal2 / (planCal2 || 1)) * 100, 130) + "%" : "0%", background: color2, transition: "width .8s ease" }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {/* Summary totals */}
                 {[["Total Calories Logged", Math.round(loggedCal), "var(--text)"], ["Goal", goalCal, "var(--muted)"], ["Remaining", goalCal - Math.round(loggedCal), goalCal - loggedCal < 0 ? "var(--red)" : "var(--green)"]].map(([label, val, color]) => (
                   <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid var(--border)", fontSize: 13 }}>
                     <span style={{ color: "var(--muted2)", fontWeight: 500 }}>{label}</span>
@@ -687,15 +451,12 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
               </div>
             )}
 
-            {/* ── NUTRIENTS TAB ── */}
             {mfpTab === "nutrients" && (
               <div>
                 <div style={{ textAlign: "center", fontSize: 12, color: "var(--muted)", marginBottom: 14, fontWeight: 600 }}>📅 Today — {today}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 80px 80px", gap: 8, padding: "0 0 8px", borderBottom: "1px solid var(--border)", marginBottom: 4 }}>
                   <div />
-                  {["Logged", "Goal", "Left"].map(h => (
-                    <div key={h} style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", textAlign: "right" }}>{h}</div>
-                  ))}
+                  {["Logged", "Goal", "Left"].map(h => <div key={h} style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", textAlign: "right" }}>{h}</div>)}
                 </div>
                 {nutrients.map(n => {
                   const left = n.goal - n.logged;
@@ -703,7 +464,7 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                   return (
                     <div key={n.label}>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 80px 80px", gap: 8, padding: "12px 0", borderBottom: "1px solid var(--border)", alignItems: "center" }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>{n.label}</div>
+                        <div style={{ fontSize: 13, fontWeight: 600 }}>{n.label}</div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: n.color, textAlign: "right", fontFamily: "'Outfit',sans-serif" }}>{Math.round(n.logged)}</div>
                         <div style={{ fontSize: 13, color: "var(--muted)", textAlign: "right" }}>{n.goal}</div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: left < 0 ? "var(--red)" : "var(--green)", textAlign: "right", fontFamily: "'Outfit',sans-serif" }}>{Math.round(left)}{left < 0 ? " ⚠" : ""}</div>
@@ -717,7 +478,6 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
               </div>
             )}
 
-            {/* ── MACROS TAB ── */}
             {mfpTab === "macros" && (
               <div>
                 <div style={{ textAlign: "center", fontSize: 12, color: "var(--muted)", marginBottom: 14, fontWeight: 600 }}>📅 Today — {today}</div>
@@ -761,6 +521,7 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
     </div>
   );
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CLIENT PROFILE PANEL
