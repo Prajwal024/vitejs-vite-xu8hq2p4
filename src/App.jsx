@@ -128,7 +128,7 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .welcome-btn:hover{transform:translateY(-2px);box-shadow:0 10px 32px rgba(34,197,94,.45)}
 
 /* ── NAV ── */
-.nav{background:rgba(8,13,26,.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 20px;padding-top:env(safe-area-inset-top);height:calc(58px + env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;animation:fadeDown .5s ease}
+.nav{background:rgba(8,13,26,.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 20px;padding-top:env(safe-area-inset-top);min-height:calc(58px + env(safe-area-inset-top));display:flex;align-items:flex-end;padding-bottom:8px;justify-content:space-between;position:sticky;top:0;z-index:100;animation:fadeDown .5s ease}
 .nav-logo{display:flex;align-items:center;gap:9px;cursor:pointer;border:none;background:none}
 .nav-icon{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#22c55e,#16a34a);display:flex;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;font-weight:900;font-size:11px;color:#fff;transition:transform .2s}
 .nav-logo:hover .nav-icon{transform:scale(1.1)}
