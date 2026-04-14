@@ -317,7 +317,8 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .ac-section-icon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
 
 /* ── CLIENT FULLSCREEN WORKOUT ── */
-.wk-fullscreen{position:fixed;inset:0;background:#080d1a;z-index:300;display:flex;flex-direction:column;overflow:hidden;animation:fadeUp .3s ease}
+.wk-fullscreen{position:fixed;inset:0;background:#080d1a;z-index:300;display:flex;flex-direction:column;overflow:hidden;animation:fadeUp .3s ease;padding-top:0}
+.wk-fs-nav{background:rgba(8,13,26,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 24px;padding-top:env(safe-area-inset-top);min-height:calc(58px + env(safe-area-inset-top));display:flex;align-items:flex-end;padding-bottom:10px;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:10}
 .wk-fs-nav{background:rgba(8,13,26,.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .wk-fs-body{flex:1;overflow-y:auto;padding:32px 24px 48px;max-width:800px;margin:0 auto;width:100%}
 .wk-day-selector{display:flex;gap:8px;margin-bottom:28px;flex-wrap:wrap}
@@ -962,9 +963,22 @@ function WorkoutFullscreen({ workout, phase, week, warmup, cooldown, onClose }) 
 
   return (
     <div className="wk-fullscreen">
-      <div className="wk-fs-nav">
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <button className="btn btn-s btn-sm" onClick={onClose}>← Back</button>
+      <div className="wk-fs-nav" style={{ paddingTop: "max(0px, env(safe-area-inset-top))", minHeight: "calc(58px + env(safe-area-inset-top))" }}>
+  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+    <button 
+      className="btn btn-s btn-sm" 
+      onClick={onClose}
+      style={{ 
+        padding: "10px 18px", 
+        fontSize: 14, 
+        fontWeight: 700,
+        background: "rgba(248,113,113,.15)",
+        borderColor: "rgba(248,113,113,.4)",
+        color: "var(--red)",
+        minHeight: 44,
+        minWidth: 80
+      }}
+    >← Exit</button>
           <div>
             <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16 }}>Workout Plan</div>
             <div style={{ fontSize: 11, color: "var(--muted)" }}>{phase} — Week {week}</div>
@@ -3211,9 +3225,19 @@ const [networkError, setNetworkError] = useState(false);
     onClick={() => !isCoach && setTab("profile")}
     style={{ display: "flex", alignItems: "center", gap: 10, cursor: isCoach ? "default" : "pointer" }}
   >
-    <div className="nav-av" style={{ cursor: isCoach ? "default" : "pointer" }}>
-      {(user.name || user.email || "U").slice(0, 2).toUpperCase()}
-    </div>
+    <div 
+  className="nav-av" 
+  style={{ 
+    cursor: isCoach ? "default" : "pointer",
+    overflow: "hidden",
+    padding: 0
+  }}
+>
+  {!isCoach && user.photoUrl 
+    ? <img src={user.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
+    : (user.name || user.email || "U").slice(0, 2).toUpperCase()
+  }
+</div>
     <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
       <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>{user.name || user.email}</div>
       <div style={{ fontSize: 10, color: isCoach ? "var(--green)" : "var(--purple)", fontWeight: 600, lineHeight: 1.3 }}>{user.role}</div>
