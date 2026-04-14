@@ -794,35 +794,6 @@ export function AddClientFullscreenEnhanced({ coachUid, coachEmail, onClose, onS
 // MY PROFILE SECTION
 // ═══════════════════════════════════════════════════════════════════════════════
 export function MyProfileSection({ uid, d, toast }) {
-  // Inside MyProfileSection, add this at the top of the form/card:
-<div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
-  <label style={{ cursor: "pointer" }} title="Tap to update your photo">
-    <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
-      const file = e.target.files[0]; if (!file) return;
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("upload_preset", "coachkit_upload");
-      fd.append("folder", "client_photos");
-      try {
-        const res = await fetch(`https://api.cloudinary.com/v1_1/dputo3zsh/image/upload`, { method: "POST", body: fd });
-        const data = await res.json();
-        await updateDoc(doc(db, "clients", uid), { photoUrl: data.secure_url });
-        toast("Photo updated!", "success");
-      } catch { toast("Upload failed", "error"); }
-      e.target.value = "";
-    }} />
-    <div style={{ width: 80, height: 80, borderRadius: "50%", overflow: "hidden", border: "3px solid var(--green-b)", position: "relative" }}>
-      {d.photoUrl
-        ? <img src={d.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        : <div style={{ width: "100%", height: "100%", background: "var(--green-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 28, color: "var(--green)" }}>{d.avatar}</div>
-      }
-      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,.55)", padding: "6px 0", textAlign: "center", fontSize: 11, color: "#fff", fontWeight: 700 }}>
-        📷 Edit
-      </div>
-    </div>
-  </label>
-  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Tap photo to update</div>
-</div>
   const [saving, setSaving]             = useState(false);
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [form, setForm] = useState({
@@ -887,9 +858,47 @@ export function MyProfileSection({ uid, d, toast }) {
 
       <div className="profile-page-section stagger-1">
         <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 20 }}>
-          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "var(--green-bg)", border: "2px solid var(--green-b)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </div>
+        <label style={{ cursor: "pointer", flexShrink: 0 }} title="Tap to update your photo">
+  <input 
+    type="file" 
+    accept="image/*" 
+    style={{ display: "none" }} 
+    onChange={async (e) => {
+      const file = e.target.files[0]; 
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) { toast("Image too large. Max 5MB", "error"); return; }
+      const fd = new FormData(); 
+      fd.append("file", file); 
+      fd.append("upload_preset", "coachkit_upload"); 
+      fd.append("folder", "client_photos");
+      try {
+        const res = await fetch(`https://api.cloudinary.com/v1_1/dputo3zsh/image/upload`, { method: "POST", body: fd });
+        const data = await res.json();
+        await updateDoc(doc(db, "clients", uid), { photoUrl: data.secure_url });
+        toast("Profile photo updated! ✅", "success");
+      } catch { toast("Upload failed", "error"); }
+      e.target.value = "";
+    }} 
+  />
+  <div style={{ 
+    width: 72, height: 72, borderRadius: "50%", 
+    overflow: "hidden",
+    border: "2.5px solid var(--green-b)", 
+    position: "relative",
+    transition: "transform .2s"
+  }}>
+    {d.photoUrl 
+      ? <img src={d.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      : <div style={{ width: "100%", height: "100%", background: "var(--green-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 26, color: "var(--green)" }}>{d.avatar}</div>
+    }
+    <div style={{ 
+      position: "absolute", bottom: 0, left: 0, right: 0, 
+      background: "rgba(0,0,0,.6)", 
+      padding: "5px 0", textAlign: "center", 
+      fontSize: 10, color: "#fff", fontWeight: 700 
+    }}>📷</div>
+  </div>
+</label>
           <div>
             <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 22 }}>{d.name}</div>
             <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>{d.email}</div>
@@ -995,9 +1004,9 @@ export function MyProfileSection({ uid, d, toast }) {
 
       <div className="profile-page-section stagger-5">
         <div className="profile-page-title"><span style={{ fontSize: 18 }}>🍽</span> Current Macro Targets</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, overflowX: "auto" }}>
           {[["Calories", n.calories, "var(--green)", "kcal"], ["Protein", n.protein, "var(--purple)", "g"], ["Carbs", n.carbs, "var(--orange)", "g"], ["Fats", n.fats, "var(--red)", "g"], ["Fiber", n.fiber, "#34d399", "g"]].map(([l, v, co, u]) => (
-            <div key={l} className="meas-card"><div className="meas-val" style={{ color: co, fontSize: 18 }}>{v || "—"}<span style={{ fontSize: 10, fontWeight: 500 }}>{v ? u : ""}</span></div><div className="meas-label">{l}</div></div>
+            <div key={l} className="meas-card"><div className="meas-val" style={{ color: co, fontSize: 15, wordBreak: "break-all" }}>{v || "—"}<span style={{ fontSize: 9, fontWeight: 500 }}>{v ? u : ""}</span></div><div className="meas-label">{l}</div></div>
           ))}
         </div>
         <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>Set by your coach. Updates automatically.</div>
