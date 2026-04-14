@@ -794,6 +794,35 @@ export function AddClientFullscreenEnhanced({ coachUid, coachEmail, onClose, onS
 // MY PROFILE SECTION
 // ═══════════════════════════════════════════════════════════════════════════════
 export function MyProfileSection({ uid, d, toast }) {
+  // Inside MyProfileSection, add this at the top of the form/card:
+<div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
+  <label style={{ cursor: "pointer" }} title="Tap to update your photo">
+    <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("upload_preset", "coachkit_upload");
+      fd.append("folder", "client_photos");
+      try {
+        const res = await fetch(`https://api.cloudinary.com/v1_1/dputo3zsh/image/upload`, { method: "POST", body: fd });
+        const data = await res.json();
+        await updateDoc(doc(db, "clients", uid), { photoUrl: data.secure_url });
+        toast("Photo updated!", "success");
+      } catch { toast("Upload failed", "error"); }
+      e.target.value = "";
+    }} />
+    <div style={{ width: 80, height: 80, borderRadius: "50%", overflow: "hidden", border: "3px solid var(--green-b)", position: "relative" }}>
+      {d.photoUrl
+        ? <img src={d.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        : <div style={{ width: "100%", height: "100%", background: "var(--green-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 28, color: "var(--green)" }}>{d.avatar}</div>
+      }
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,.55)", padding: "6px 0", textAlign: "center", fontSize: 11, color: "#fff", fontWeight: 700 }}>
+        📷 Edit
+      </div>
+    </div>
+  </label>
+  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>Tap photo to update</div>
+</div>
   const [saving, setSaving]             = useState(false);
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [form, setForm] = useState({
