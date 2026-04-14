@@ -1984,7 +1984,7 @@ const [compareSelections, setCompareSelections] = useState([]);
   }
 
   if (tab === "photos") {
-    const POSES = ["Front", "Back", "Side"];
+    const POSES = ["Front", "Back", "Side", "Front Double Biceps", "Back Double Biceps"];
     const currentWeek = d.week || 1;
     const clientPhotos = d.photos || [];
     
@@ -2090,7 +2090,7 @@ const [compareSelections, setCompareSelections] = useState([]);
               </span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10 }}>
               {POSES.map(pose => {
                 const photo = getPhoto(week, pose);
                 const selectKey = week + "_" + pose;
@@ -2098,7 +2098,7 @@ const [compareSelections, setCompareSelections] = useState([]);
                 return (
                   <div key={pose}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6, textAlign: "center" }}>
-                      {pose === "Front" ? "🔵" : pose === "Back" ? "🟢" : "🟡"} {pose}
+                    {pose === "Front" ? "🔵" : pose === "Back" ? "🟢" : pose === "Side" ? "🟡" : pose === "Front Double Biceps" ? "💪" : "🔥"} {pose}
                     </div>
                     {photo ? (
                       <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "3/4", border: isSelected ? "3px solid var(--blue)" : "2px solid var(--border)", cursor: "pointer", transition: "border-color .2s" }}
@@ -2619,19 +2619,28 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
             </div>
             <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>{photos.length} file{photos.length !== 1 ? "s" : ""}</span>
           </div>
-          <div className="photo-grid">
-            {photos.map((p, i) => (
-              <div key={i} className="photo-item">
-                <div onClick={() => setViewMedia(p)} style={{ width: "100%", height: "100%" }}>
-                  {p.type === "video"
-                    ? <><video src={p.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><div className="video-badge">Video</div></>
-                    : <img src={p.url} alt="" />}
-                </div>
-                <div className="photo-label">{p.date}</div>
-                <button className="photo-del" onClick={e => { e.stopPropagation(); deleteClientPhoto(p); }}>✕</button>
-              </div>
-            ))}
-          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(110px,1fr))", gap: 10 }}>
+  {photos.map((p, i) => (
+    <div key={i} className="photo-item">
+      <div onClick={() => setViewMedia(p)} style={{ width: "100%", height: "100%" }}>
+        {p.type === "video"
+          ? <><video src={p.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><div className="video-badge">Video</div></>
+          : <img src={p.url} alt="" />}
+      </div>
+      <div className="photo-label" style={{ fontSize: 9 }}>
+        {p.pose
+          ? (p.pose === "Front" ? "🔵 Front"
+            : p.pose === "Back" ? "🟢 Back"
+            : p.pose === "Side" ? "🟡 Side"
+            : p.pose === "Front Double Biceps" ? "💪 Front DB"
+            : p.pose === "Back Double Biceps" ? "🔥 Back DB"
+            : p.pose)
+          : p.date}
+      </div>
+      <button className="photo-del" onClick={e => { e.stopPropagation(); deleteClientPhoto(p); }}>✕</button>
+    </div>
+  ))}
+</div>
         </div>
       ))}
     </div>
