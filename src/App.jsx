@@ -128,7 +128,7 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .welcome-btn:hover{transform:translateY(-2px);box-shadow:0 10px 32px rgba(34,197,94,.45)}
 
 /* ── NAV ── */
-.nav{background:rgba(8,13,26,.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 20px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;animation:fadeDown .5s ease}
+.nav{background:rgba(8,13,26,.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 20px;padding-top:env(safe-area-inset-top);height:calc(58px + env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;animation:fadeDown .5s ease}
 .nav-logo{display:flex;align-items:center;gap:9px;cursor:pointer;border:none;background:none}
 .nav-icon{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#22c55e,#16a34a);display:flex;align-items:center;justify-content:center;font-family:'Outfit',sans-serif;font-weight:900;font-size:11px;color:#fff;transition:transform .2s}
 .nav-logo:hover .nav-icon{transform:scale(1.1)}
@@ -144,7 +144,7 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .signout:hover{border-color:var(--red);color:var(--red)}
 
 /* ── PAGE / CARD ── */
-.page{max-width:960px;margin:0 auto;padding:24px 16px calc(80px + env(safe-area-inset-bottom));animation:fadeUp .4s ease}
+.page{max-width:960px;margin:0 auto;padding:24px 16px calc(80px + env(safe-area-inset-bottom));animation:fadeUp .4s ease;padding-top:max(24px, 16px)}
 .card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:18px;box-shadow:var(--sh);transition:transform .2s,box-shadow .2s,border-color .2s;animation:cardEntrance .4s ease}
 .card:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.5);border-color:var(--border2)}
 .card-title{font-family:'Outfit',sans-serif;font-weight:700;font-size:15px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
@@ -406,7 +406,7 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
   .modal{max-height:95vh;border-radius:16px 16px 0 0;position:fixed;bottom:0;left:0;right:0;margin:0;max-width:100%}
 
   /* ── NAV — hide top tabs, show bottom bar ── */
-  .nav{height:52px;padding:0 14px}
+  .nav{height:calc(52px + env(safe-area-inset-top));padding:0 14px;padding-top:env(safe-area-inset-top)}
   .nav-tabs{display:none}
   .nav-brand{font-size:14px}
   .nav-right{gap:6px}
@@ -1060,9 +1060,9 @@ function WorkoutFullscreen({ workout, phase, week, warmup, cooldown, onClose }) 
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14 }}>{ex.name}</div>
                   {ex.note && (
-                    <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      💡 {ex.note}
-                    </div>
+                    <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 2, whiteSpace: "normal", lineHeight: 1.4, wordBreak: "break-word" }}>
+                    💡 {ex.note}
+                  </div>
                   )}
                 </div>
 
