@@ -2833,29 +2833,39 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
                 return (
                   <tr key={c.id}>
                     <td><div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-  <label style={{ cursor: "pointer", flexShrink: 0 }} title="Click to upload client photo">
-    <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
-      const file = e.target.files[0]; if (!file) return;
-      const fd = new FormData(); fd.append("file", file); fd.append("upload_preset", "coachkit_upload"); fd.append("folder", "client_photos");
-      try {
-        const res = await fetch(`https://api.cloudinary.com/v1_1/dputo3zsh/image/upload`, { method: "POST", body: fd });
-        const data = await res.json();
-        await updateDoc(doc(db, "clients", c.id), { photoUrl: data.secure_url });
-        toast("Photo updated!", "success");
-      } catch { toast("Upload failed", "error"); }
-      e.target.value = "";
-    }} />
-    <div style={{ width: 32, height: 32, borderRadius: "50%", overflow: "hidden", border: "1.5px solid var(--green-b)", position: "relative" }}>
-      {c.photoUrl
-        ? <img src={c.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        : <div className="av av-sm av-g" style={{ width: "100%", height: "100%", borderRadius: "50%" }}>{c.avatar}</div>
-      }
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.45)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity .2s" }}
-        onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = 0}>
-        <span style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>📷</span>
-      </div>
+                    <div
+  style={{
+    width: 32,
+    height: 32,
+    borderRadius: "50%",
+    overflow: "hidden",
+    border: "1.5px solid var(--green-b)",
+    flexShrink: 0,
+  }}
+>
+  {c.photoUrl ? (
+    <img
+      src={c.photoUrl}
+      alt=""
+      style={{
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+      }}
+    />
+  ) : (
+    <div
+      className="av av-sm av-g"
+      style={{
+        width: "100%",
+        height: "100%",
+        borderRadius: "50%",
+      }}
+    >
+      {c.avatar}
     </div>
-  </label><div><div style={{ fontWeight: 600 }}>{c.name}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>{c.email}</div></div></div></td>
+  )}
+</div><div><div style={{ fontWeight: 600 }}>{c.name}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>{c.email}</div></div></div></td>
                     <td><span className="bdg bdg-g">{c.phase}</span></td>
                     <td>{status === "active" ? <span className="access-badge-active">✓ Active</span> : status === "paused" ? <span className="access-badge-paused">⏸ Paused</span> : <span className="access-badge-terminated">🚫 Terminated</span>}</td>
                     <td style={{ fontWeight: 600 }}>{c.weight ? c.weight + "kg" : "-"}</td>
