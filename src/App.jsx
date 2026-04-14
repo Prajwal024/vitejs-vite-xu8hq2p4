@@ -1504,9 +1504,9 @@ function CoachWorkoutTab({ sel, setShowWorkoutEditor, setVideoModal }) {
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: 13 }}>{ex.name}</div>
                   {ex.note && (
-                    <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      💡 {ex.note}
-                    </div>
+                    <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 2, whiteSpace: "normal", lineHeight: 1.4, wordBreak: "break-word" }}>
+                    💡 {ex.note}
+                  </div>
                   )}
                 </div>
 
