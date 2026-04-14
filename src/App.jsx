@@ -144,7 +144,7 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .signout:hover{border-color:var(--red);color:var(--red)}
 
 /* ── PAGE / CARD ── */
-.page{max-width:960px;margin:0 auto;padding:24px 16px 48px;animation:fadeUp .4s ease}
+.page{max-width:960px;margin:0 auto;padding:24px 16px calc(80px + env(safe-area-inset-bottom));animation:fadeUp .4s ease}
 .card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:18px;box-shadow:var(--sh);transition:transform .2s,box-shadow .2s,border-color .2s;animation:cardEntrance .4s ease}
 .card:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.5);border-color:var(--border2)}
 .card-title{font-family:'Outfit',sans-serif;font-weight:700;font-size:15px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
@@ -416,20 +416,26 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
     display:flex;
     position:fixed;
     bottom:0;left:0;right:0;
-    background:rgba(8,13,26,.97);
-    backdrop-filter:blur(16px);
+    background:rgba(8,13,26,.98);
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
     border-top:1px solid var(--border);
     z-index:100;
-    padding:4px 0 env(safe-area-inset-bottom);
+    padding:6px 4px 0 4px;
+    padding-bottom:max(10px, env(safe-area-inset-bottom));
+    min-height:56px;
   }
   .bottom-nav-btn{
     flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:0;padding:8px 2px;border:none;background:transparent;
+    gap:2px;padding:6px 2px 4px;border:none;background:transparent;
     cursor:pointer;color:var(--muted);transition:all .18s;min-width:0;
-    border-radius:10px;margin:2px;
+    border-radius:10px;margin:1px;
+    -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
+    min-height:44px;
   }
   .bottom-nav-btn.active{color:var(--green);background:var(--green-bg);}
-  .bottom-nav-btn .bn-icon{font-size:20px;line-height:1}
+  .bottom-nav-btn .bn-icon{font-size:22px;line-height:1;display:block}
   .bottom-nav-btn .bn-label{display:none}
   /* ── CARDS / TYPOGRAPHY ── */
   .card{padding:14px 12px}
@@ -463,31 +469,35 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
   .bottom-nav{
     display:flex;
     position:fixed;
-    bottom:0;left:0;right:0;
-    background:rgba(8,13,26,.97);
-    backdrop-filter:blur(16px);
-    border-top:1px solid var(--border);
-    z-index:100;
-    padding:6px 0;
-    max-width:960px;
-    margin:0 auto;
+    bottom:0;
     left:50%;
     transform:translateX(-50%);
     width:100%;
-    border-radius:16px 16px 0 0;
+    max-width:960px;
+    background:rgba(8,13,26,.98);
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
+    border-top:1px solid var(--border);
     border-left:1px solid var(--border);
     border-right:1px solid var(--border);
+    z-index:100;
+    padding:6px 6px 8px;
+    border-radius:16px 16px 0 0;
+    min-height:58px;
   }
   .bottom-nav-btn{
     flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:2px;padding:8px 4px;border:none;background:transparent;
+    gap:2px;padding:6px 4px;border:none;background:transparent;
     cursor:pointer;color:var(--muted);transition:all .18s;min-width:0;
-    border-radius:10px;margin:2px;
+    border-radius:10px;margin:1px;
+    -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
+    min-height:44px;
   }
   .bottom-nav-btn.active{color:var(--green);background:var(--green-bg);}
-  .bottom-nav-btn .bn-icon{font-size:18px;line-height:1}
+  .bottom-nav-btn .bn-icon{font-size:19px;line-height:1;display:block}
   .bottom-nav-btn .bn-label{display:none}
-  .page{padding-bottom:80px}
+  .page{padding-bottom:82px}
 }
 ` + CSS_ADDITIONS;
 
@@ -495,6 +505,7 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 function useToast() {
   const [t, setT] = useState(null);
   const show = (msg, type = "success") => { setT({ msg, type }); setTimeout(() => setT(null), 4000); };
+ 
   return { t, show };
 }
 function MC({ label, value, color, suffix = "", flash = false }) {
@@ -602,7 +613,121 @@ function VideoModal({ url, name, onClose }) {
     </div>
   );
 }
+// ─── CHAT FULL HEIGHT (fills screen, no scroll waste) ─────────────────────────
+function ChatFullHeight({ currentUid, otherUid, currentName, otherName }) {
+  const [messages, setMessages] = useState([]);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const msgsEndRef = useRef(null);
+  const inputRef = useRef(null);
+  const chatId = [currentUid, otherUid].sort().join("_");
 
+  useEffect(() => {
+    const q = query(collection(db, "chats", chatId, "messages"), orderBy("timestamp", "asc"));
+    return onSnapshot(q, snap => setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+  }, [chatId]);
+
+  useEffect(() => {
+    msgsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // When keyboard opens on mobile, scroll to bottom
+  useEffect(() => {
+    const handler = () => {
+      setTimeout(() => msgsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 300);
+    };
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  const sendMsg = async () => {
+    if (!text.trim() || sending) return;
+    setSending(true);
+    const msg = text.trim();
+    setText("");
+    await addDoc(collection(db, "chats", chatId, "messages"), {
+      text: msg, senderId: currentUid, senderName: currentName, timestamp: serverTimestamp()
+    });
+    await setDoc(doc(db, "chats", chatId), {
+      participants: [currentUid, otherUid], lastMessage: msg, lastTimestamp: serverTimestamp()
+    }, { merge: true });
+    setSending(false);
+    inputRef.current?.focus();
+  };
+
+  const handleKey = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+  };
+
+  return (
+    <div style={{
+      display: "flex", flexDirection: "column",
+      height: "100%",
+      background: "var(--s1)", border: "1px solid var(--border)",
+      borderRadius: 14, overflow: "hidden"
+    }}>
+      {/* Messages area */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+        {messages.length === 0 && (
+          <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 28, margin: "auto" }}>
+            <div style={{ fontSize: 36, marginBottom: 10 }}>👋</div>
+            No messages yet. Say hi!
+          </div>
+        )}
+        {messages.map((m, i) => {
+          const isMe = m.senderId === currentUid;
+          const ts = m.timestamp?.toDate
+            ? m.timestamp.toDate().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+            : "";
+          return (
+            <div key={m.id} style={{
+              display: "flex", flexDirection: "column",
+              alignItems: isMe ? "flex-end" : "flex-start",
+              alignSelf: isMe ? "flex-end" : "flex-start",
+              maxWidth: "78%",
+              animation: "msgSlideIn .2s ease both",
+              animationDelay: i * 0.01 + "s"
+            }}>
+              <div style={{
+                padding: "9px 13px", borderRadius: isMe ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                fontSize: 13, lineHeight: 1.5, wordBreak: "break-word",
+                background: isMe ? "linear-gradient(135deg,#22c55e,#16a34a)" : "var(--s2)",
+                color: isMe ? "#fff" : "var(--text)",
+                border: isMe ? "none" : "1px solid var(--border)"
+              }}>{m.text}</div>
+              <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 3, padding: "0 4px" }}>{ts}</div>
+            </div>
+          );
+        })}
+        <div ref={msgsEndRef} />
+      </div>
+
+      {/* Input row — pinned to bottom */}
+      <div style={{
+        display: "flex", gap: 8, padding: "10px 12px",
+        borderTop: "1px solid var(--border)",
+        background: "var(--s2)",
+        flexShrink: 0
+      }}>
+        <input
+          ref={inputRef}
+          className="fi"
+          style={{ flex: 1, fontSize: 14, borderRadius: 22, padding: "10px 16px" }}
+          placeholder={`Message ${otherName}...`}
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={handleKey}
+        />
+        <button
+          className="btn btn-p"
+          onClick={sendMsg}
+          disabled={sending || !text.trim()}
+          style={{ borderRadius: 22, padding: "10px 18px", flexShrink: 0 }}
+        >Send</button>
+      </div>
+    </div>
+  );
+}
 // ─── CHAT ─────────────────────────────────────────────────────────────────────
 function ChatPanel({ currentUid, otherUid, currentName, otherName }) {
   const [messages, setMessages] = useState([]);
@@ -829,73 +954,178 @@ function FoodLogSection({ uid, d, toast, targetNutrition, mealPlan }) {
 }
 
 // ─── CLIENT WORKOUT FULLSCREEN ────────────────────────────────────────────────
-function WorkoutFullscreen({ workout, phase, week, onClose }) {
+function WorkoutFullscreen({ workout, phase, week, warmup, cooldown, onClose }) {
   const [selDay, setSelDay] = useState(0);
   const [videoModal, setVideoModal] = useState(null);
   const day = workout[selDay];
   const dc = DAY_COLORS[selDay % DAY_COLORS.length];
+
   return (
     <div className="wk-fullscreen">
       <div className="wk-fs-nav">
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <button className="btn btn-s btn-sm" onClick={onClose}>← Back</button>
-          <div><div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16 }}>Workout Plan</div><div style={{ fontSize: 11, color: "var(--muted)" }}>{phase} — Week {week}</div></div>
+          <div>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16 }}>Workout Plan</div>
+            <div style={{ fontSize: 11, color: "var(--muted)" }}>{phase} — Week {week}</div>
+          </div>
         </div>
         <span className="live"><span className="dot" />Live plan</span>
       </div>
+
       <div className="wk-fs-body">
-        <div className="wk-day-selector">
+        {/* Day selector pills */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
           {workout.map((d2, i) => {
             const dc2 = DAY_COLORS[i % DAY_COLORS.length];
             const isActive = selDay === i;
             return (
-              <button key={i} className="wk-day-btn" style={isActive ? { borderColor: dc2.accent, background: dc2.bg, color: dc2.accent } : {}} onClick={() => setSelDay(i)}>
-                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 2, color: isActive ? dc2.accent : "var(--muted)" }}>{d2.day.slice(0, 3)}</div>
-                <div style={{ fontWeight: 700, fontSize: 12, color: isActive ? dc2.accent : "var(--muted2)" }}>{d2.type}</div>
-                {d2.type !== "Rest" && <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 1 }}>{d2.exercises.length}ex</div>}
+              <button key={i} onClick={() => setSelDay(i)}
+                style={{
+                  padding: "7px 14px", borderRadius: 20,
+                  border: "1.5px solid " + (isActive ? dc2.accent : "var(--border)"),
+                  background: isActive ? dc2.bg : "var(--s2)",
+                  cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontWeight: 700,
+                  fontSize: 12, transition: "all .2s",
+                  color: isActive ? dc2.accent : "var(--muted)",
+                  opacity: d2.type === "Rest" ? 0.6 : 1
+                }}>
+                <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".07em" }}>{d2.day.slice(0, 3)}</div>
+                <div>{d2.type}</div>
+                {d2.type !== "Rest" && <div style={{ fontSize: 9, color: isActive ? dc2.accent : "var(--muted)" }}>{d2.exercises.length}ex</div>}
               </button>
             );
           })}
         </div>
-        <div style={{ background: dc.bg, border: "2px solid " + dc.border, borderRadius: 16, padding: "20px 24px", marginBottom: 20 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: day.type !== "Rest" ? 20 : 0 }}>
-            <div style={{ width: 48, height: 48, borderRadius: "50%", background: dc.accent + "22", border: "2px solid " + dc.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 900, color: dc.accent, fontFamily: "'Outfit',sans-serif" }}>{selDay + 1}</div>
-            <div>
-              <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 22, color: dc.accent }}>{day.day}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
-                <span style={{ padding: "3px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: dc.accent + "22", color: dc.accent, border: "1px solid " + dc.border }}>{day.type}</span>
-                {day.type !== "Rest" && <span style={{ fontSize: 12, color: "var(--muted)" }}>{day.exercises.length} exercises</span>}
-              </div>
+
+        {/* Day header */}
+        <div style={{
+          background: dc.bg, border: "2px solid " + dc.border, borderRadius: 14,
+          padding: "14px 18px", marginBottom: 16,
+          display: "flex", alignItems: "center", gap: 12
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: "50%",
+            background: dc.accent + "22", border: "2px solid " + dc.border,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 17, fontWeight: 900, color: dc.accent, fontFamily: "'Outfit',sans-serif"
+          }}>{selDay + 1}</div>
+          <div>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 20, color: dc.accent }}>{day.day}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
+              <span style={{ padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: dc.accent + "22", color: dc.accent, border: "1px solid " + dc.border }}>{day.type}</span>
+              {day.type !== "Rest" && <span style={{ fontSize: 11, color: "var(--muted)" }}>{day.exercises.length} exercises</span>}
             </div>
           </div>
-          {day.type === "Rest" && <div style={{ textAlign: "center", padding: "24px 0", color: "var(--muted)", fontSize: 14 }}><div style={{ fontSize: 40, marginBottom: 8 }}>😴</div><div style={{ fontWeight: 700 }}>Rest & Recovery Day</div></div>}
         </div>
-        {day.type !== "Rest" && day.exercises.map((ex, ei) => (
-          <div key={ei} className="ex-card" style={{ animationDelay: ei * 0.06 + "s" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: dc.accent + "22", border: "2px solid " + dc.border, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: dc.accent, flexShrink: 0 }}>{ei + 1}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 17, marginBottom: 6 }}>{ex.name}</div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: ex.note ? 10 : 0 }}>
-                  {[["Sets", ex.sets, dc.accent], ["Reps", ex.reps, "var(--blue)"], ["Rest", ex.rest, "var(--orange)"]].map(([l, v, co]) => (
-                    <div key={l} style={{ background: "var(--s3)", borderRadius: 8, padding: "6px 12px", border: "1px solid var(--border)", textAlign: "center" }}>
-                      <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 16, fontWeight: 800, color: co }}>{v}</div>
-                      <div style={{ fontSize: 9, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase" }}>{l}</div>
-                    </div>
-                  ))}
-                </div>
-                {ex.note && <div className="note-box">{ex.note}</div>}
-                {ex.videoUrl && <button className="btn btn-s btn-sm" style={{ marginTop: 8 }} onClick={() => setVideoModal(ex)}>▶ Watch Demo</button>}
-              </div>
-            </div>
+
+        {day.type === "Rest" ? (
+          <div style={{ textAlign: "center", padding: "40px 24px", background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14 }}>
+            <div style={{ fontSize: 40, marginBottom: 10 }}>😴</div>
+            <div style={{ fontWeight: 700, fontSize: 16 }}>Rest & Recovery Day</div>
+            <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 6 }}>Relax, recover, and come back stronger.</div>
           </div>
-        ))}
+        ) : (
+          <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
+            {/* Table header */}
+            <div style={{
+              display: "grid", gridTemplateColumns: "32px 1fr 52px 72px 60px 36px",
+              gap: 0, padding: "8px 14px",
+              background: "var(--s3)", borderBottom: "1px solid var(--border)"
+            }}>
+              {["#", "Exercise", "Sets", "Reps", "Rest", ""].map((h, i) => (
+                <div key={i} style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", textAlign: i > 1 ? "center" : "left" }}>{h}</div>
+              ))}
+            </div>
+            {/* Exercise rows */}
+            {day.exercises.map((ex, ei) => (
+              <div key={ei} style={{
+                display: "grid", gridTemplateColumns: "32px 1fr 52px 72px 60px 36px",
+                gap: 0, padding: "11px 14px", alignItems: "center",
+                borderBottom: ei < day.exercises.length - 1 ? "1px solid var(--border)" : "none",
+                transition: "background .15s",
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,.025)"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                {/* # */}
+                <div style={{
+                  width: 22, height: 22, borderRadius: "50%",
+                  background: dc.accent + "20", border: "1.5px solid " + dc.border,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 10, fontWeight: 800, color: dc.accent
+                }}>{ei + 1}</div>
+
+                {/* Name + note */}
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14 }}>{ex.name}</div>
+                  {ex.note && (
+                    <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      💡 {ex.note}
+                    </div>
+                  )}
+                </div>
+
+                {/* Sets */}
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 15, fontWeight: 800, color: dc.accent }}>{ex.sets}</div>
+                  <div style={{ fontSize: 9, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>sets</div>
+                </div>
+
+                {/* Reps */}
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 800, color: "var(--blue)" }}>{ex.reps}</div>
+                  <div style={{ fontSize: 9, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>reps</div>
+                </div>
+
+                {/* Rest */}
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 13, fontWeight: 800, color: "var(--orange)" }}>{ex.rest}</div>
+                  <div style={{ fontSize: 9, color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>rest</div>
+                </div>
+
+                {/* Video */}
+                <div style={{ textAlign: "center" }}>
+                  {ex.videoUrl && (
+                    <button className="btn btn-s btn-xs" onClick={() => setVideoModal(ex)}
+                      style={{ padding: "3px 7px", fontSize: 11 }}>▶</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Warm-up */}
+        {warmup ? (
+          <div style={{ background: "rgba(251,146,60,.06)", border: "1px solid rgba(251,146,60,.25)", borderRadius: 14, padding: "16px 18px", marginBottom: 12 }}>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15, color: "var(--orange)", marginBottom: 10 }}>🔥 Warm-up</div>
+            <div style={{ fontSize: 13, color: "var(--muted2)", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{warmup}</div>
+          </div>
+        ) : null}
+
+        {/* Cool-down */}
+        {cooldown ? (
+          <div style={{ background: "rgba(56,189,248,.06)", border: "1px solid rgba(56,189,248,.25)", borderRadius: 14, padding: "16px 18px", marginBottom: 16 }}>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15, color: "#38bdf8", marginBottom: 10 }}>❄️ Cool-down</div>
+            <div style={{ fontSize: 13, color: "var(--muted2)", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{cooldown}</div>
+          </div>
+        ) : null}
       </div>
+
+      {/* Video modal */}
       {videoModal && (
         <div className="ov" style={{ zIndex: 400 }} onClick={() => setVideoModal(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="mh"><div><div className="mt">{videoModal.name}</div></div><button className="xbtn" onClick={() => setVideoModal(null)}>✕</button></div>
-            <div className="mb2">{(() => { const url = videoModal.videoUrl; const isYT = url.includes("youtube.com") || url.includes("youtu.be"); const id = isYT ? (url.split("v=")[1]?.split("&")[0] || url.split("youtu.be/")[1]?.split("?")[0]) : null; return isYT ? <iframe width="100%" height="315" src={`https://www.youtube.com/embed/${id}`} frameBorder="0" allowFullScreen style={{ borderRadius: 10 }} /> : <video src={url} controls style={{ width: "100%", borderRadius: 10 }} />; })()}</div>
+            <div className="mb2">{(() => {
+              const url = videoModal.videoUrl;
+              const isYT = url.includes("youtube.com") || url.includes("youtu.be");
+              const id = isYT ? (url.split("v=")[1]?.split("&")[0] || url.split("youtu.be/")[1]?.split("?")[0]) : null;
+              return isYT
+                ? <iframe width="100%" height="315" src={`https://www.youtube.com/embed/${id}`} frameBorder="0" allowFullScreen style={{ borderRadius: 10 }} />
+                : <video src={url} controls style={{ width: "100%", borderRadius: 10 }} />;
+            })()}</div>
           </div>
         </div>
       )}
@@ -910,12 +1140,37 @@ function WorkoutEditorCoach({ plan, onClose, autoSave }) {
   const [days, setDays] = useState(JSON.parse(JSON.stringify(plan)));
   const [editingDay, setEditingDay] = useState(null); // null = grid view, number = day index
   const [autoSaved, setAutoSaved] = useState(false);
-  const saveTimer = useRef(null);
+const saveTimer = useRef(null);
+const warmupTimer = useRef(null);
+const cooldownTimer = useRef(null);
+const [warmup, setWarmup] = useState(plan.warmup || "");
+const [cooldown, setCooldown] = useState(plan.cooldown || "");
+
+const triggerAutoSaveWarmup = (val) => {
+  if (warmupTimer.current) clearTimeout(warmupTimer.current);
+  warmupTimer.current = setTimeout(() => {
+    autoSave([...days], val, cooldown);
+    setAutoSaved(true);
+    setTimeout(() => setAutoSaved(false), 2000);
+  }, 800);
+};
+const triggerAutoSaveCooldown = (val) => {
+  if (cooldownTimer.current) clearTimeout(cooldownTimer.current);
+  cooldownTimer.current = setTimeout(() => {
+    autoSave([...days], warmup, val);
+    setAutoSaved(true);
+    setTimeout(() => setAutoSaved(false), 2000);
+  }, 800);
+};
   const TYPES = ["Push", "Pull", "Legs", "Rest", "Cardio", "Full Body", "Upper", "Lower", "Active Recovery"];
 
   const triggerAutoSave = (newDays) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => { autoSave(newDays); setAutoSaved(true); setTimeout(() => setAutoSaved(false), 2500); }, 800);
+    saveTimer.current = setTimeout(() => {
+      autoSave(newDays, warmup, cooldown);
+      setAutoSaved(true);
+      setTimeout(() => setAutoSaved(false), 2500);
+    }, 800);
   };
 
   const updateDay = (di, f, v) => { const u = days.map((d, i) => i === di ? { ...d, [f]: v } : d); setDays(u); triggerAutoSave(u); };
@@ -1096,12 +1351,238 @@ function WorkoutEditorCoach({ plan, onClose, autoSave }) {
               );
             })}
           </div>
+          </div>
+      </div>
+
+      {/* ── WARM-UP EDITOR ── */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-title">
+          🔥 Warm-up Instructions
+          <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>— visible to client in workout view</span>
         </div>
+        <textarea className="fta" style={{ minHeight: 140, fontSize: 13, lineHeight: 1.7 }}
+          placeholder={"General Warm-Up (5 Minutes)\n\nLight cardio of choice (treadmill walk, cycle, cross-trainer)\nGradually increase heart rate\nPurpose: increase blood flow, joint temperature, and readiness\n\nUpper Body Days:\nBand pull-aparts – 2 × 15\nShoulder external rotations (band/cable) – 2 × 12–15\nScapular retractions – 2 × 12\nArm circles (controlled) – 20 reps each direction\n\nLower Body Days:\nHip circles – 10 each side\nHamstring sweeps or toe reaches – 10 reps\nBodyweight squats – 2 × 15\nWalking lunges – 10 each leg"}
+          value={warmup}
+          onChange={e => { setWarmup(e.target.value); triggerAutoSaveWarmup(e.target.value); }}
+        />
+      </div>
+
+      {/* ── COOL-DOWN EDITOR ── */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-title">
+          ❄️ Cool-down Instructions
+          <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>— visible to client in workout view</span>
+        </div>
+        <textarea className="fta" style={{ minHeight: 140, fontSize: 13, lineHeight: 1.7 }}
+          placeholder={"Heart Rate Normalisation (3–4 Minutes)\n\nSlow walking or light cycling\nPurpose: bring nervous system down, aid recovery\nDeep nasal breathing\n\nStretching & Mobility (5–6 Minutes)\n\nUpper Body Focus:\nNeck mobility (gentle) – 10–15 reps\nChest stretch – 20–30 sec\nShoulder cross-body stretch – 30 sec each\nTricep overhead stretch – 20–30 sec\n\nLower Body Focus:\nQuad stretch (standing) – 30 sec each\nHamstring stretch – 30 sec each\nGlute stretch (figure-4) – 30 sec each"}
+          value={cooldown}
+          onChange={e => { setCooldown(e.target.value); triggerAutoSaveCooldown(e.target.value); }}
+        />
       </div>
     </div>
   );
 }
+// ─── DROP-IN REPLACEMENT for the innerTab === "workout" IIFE block ───────────
+// Replace this entire block in CoachDash:
+//
+//   {innerTab === "workout" && (() => { ... })()}
+//
+// With this component call:
+//
+//   {innerTab === "workout" && (
+//     <CoachWorkoutTab
+//       sel={sel}
+//       setShowWorkoutEditor={setShowWorkoutEditor}
+//       setVideoModal={setVideoModal}
+//     />
+//   )}
+//
+// And define CoachWorkoutTab OUTSIDE of CoachDash (e.g. right above it).
+// ─────────────────────────────────────────────────────────────────────────────
 
+function CoachWorkoutTab({ sel, setShowWorkoutEditor, setVideoModal }) {
+  const wp = sel.workoutPlan || DEFAULT_WORKOUT;
+  const [viewDay, setViewDay] = useState(0);
+
+  const vd = wp[viewDay] || wp[0];
+  const vdc = DAY_COLORS[viewDay % DAY_COLORS.length];
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 17 }}>Workout Plan</div>
+        <button className="btn btn-p btn-sm" onClick={() => setShowWorkoutEditor(true)}>✏ Edit Plan</button>
+      </div>
+
+      {/* Day selector pills */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+        {wp.map((day, di) => {
+          const dc2 = DAY_COLORS[di % DAY_COLORS.length];
+          const isActive = viewDay === di;
+          return (
+            <button key={di} onClick={() => setViewDay(di)}
+              style={{
+                padding: "6px 13px", borderRadius: 20,
+                border: "1.5px solid " + (isActive ? dc2.accent : "var(--border)"),
+                background: isActive ? dc2.bg : "var(--s2)",
+                cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontWeight: 700,
+                fontSize: 11, transition: "all .18s",
+                color: isActive ? dc2.accent : "var(--muted)",
+                opacity: day.type === "Rest" ? 0.6 : 1
+              }}>
+              <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".07em" }}>{day.day.slice(0, 3)}</div>
+              <div>{day.type}</div>
+              {day.type !== "Rest" && <div style={{ fontSize: 9 }}>{day.exercises.length}ex</div>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Day card */}
+      <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
+        {/* Day header */}
+        <div style={{
+          padding: "12px 16px", background: vdc.bg,
+          borderBottom: "1px solid var(--border)",
+          display: "flex", alignItems: "center", gap: 10
+        }}>
+          <div style={{
+            width: 32, height: 32, borderRadius: "50%",
+            background: vdc.accent + "22", border: "1.5px solid " + vdc.border,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 13, fontWeight: 800, color: vdc.accent
+          }}>{viewDay + 1}</div>
+          <div>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15, color: vdc.accent }}>{vd.day}</div>
+            <div style={{ fontSize: 11, color: "var(--muted)" }}>
+              {vd.type}{vd.type !== "Rest" ? " · " + vd.exercises.length + " exercises" : ""}
+            </div>
+          </div>
+        </div>
+
+        {vd.type === "Rest" ? (
+          <div style={{ padding: "28px 16px", textAlign: "center", color: "var(--muted)" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>😴</div>
+            <div style={{ fontWeight: 700 }}>Rest & Recovery Day</div>
+          </div>
+        ) : (
+          <>
+            {/* Table header */}
+            <div style={{
+              display: "grid", gridTemplateColumns: "28px 1fr 48px 68px 56px 32px",
+              gap: 0, padding: "7px 14px",
+              background: "var(--s3)", borderBottom: "1px solid var(--border)"
+            }}>
+              {["#", "Exercise", "Sets", "Reps", "Rest", ""].map((h, i) => (
+                <div key={i} style={{
+                  fontSize: 10, fontWeight: 700, color: "var(--muted)",
+                  textTransform: "uppercase", letterSpacing: ".06em",
+                  textAlign: i > 1 ? "center" : "left"
+                }}>{h}</div>
+              ))}
+            </div>
+
+            {/* Exercise rows */}
+            {vd.exercises.map((ex, ei) => (
+              <div key={ei} style={{
+                display: "grid", gridTemplateColumns: "28px 1fr 48px 68px 56px 32px",
+                gap: 0, padding: "10px 14px", alignItems: "center",
+                borderBottom: ei < vd.exercises.length - 1 ? "1px solid var(--border)" : "none",
+                transition: "background .15s"
+              }}
+                onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,.025)"}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                <div style={{
+                  width: 20, height: 20, borderRadius: "50%",
+                  background: vdc.accent + "20", border: "1.5px solid " + vdc.border,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 9, fontWeight: 800, color: vdc.accent
+                }}>{ei + 1}</div>
+
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{ex.name}</div>
+                  {ex.note && (
+                    <div style={{ fontSize: 11, color: "#fbbf24", marginTop: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      💡 {ex.note}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 14, fontWeight: 800, color: vdc.accent }}>{ex.sets}</div>
+                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>sets</div>
+                </div>
+
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 800, color: "var(--blue)" }}>{ex.reps}</div>
+                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>reps</div>
+                </div>
+
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 12, fontWeight: 800, color: "var(--orange)" }}>{ex.rest}</div>
+                  <div style={{ fontSize: 9, color: "var(--muted)", textTransform: "uppercase" }}>rest</div>
+                </div>
+
+                <div style={{ textAlign: "center" }}>
+                  {ex.videoUrl && (
+                    <button className="btn btn-s btn-xs"
+                      onClick={() => setVideoModal(ex)}
+                      style={{ padding: "2px 6px", fontSize: 10 }}>▶</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* Warm-up */}
+      {sel.workoutWarmup && (
+        <div style={{
+          background: "rgba(251,146,60,.06)", border: "1px solid rgba(251,146,60,.25)",
+          borderRadius: 12, padding: "12px 16px", marginBottom: 10
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "var(--orange)", marginBottom: 6 }}>🔥 Warm-up</div>
+          <div style={{ fontSize: 12, color: "var(--muted2)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{sel.workoutWarmup}</div>
+        </div>
+      )}
+
+      {/* Cool-down */}
+      {sel.workoutCooldown && (
+        <div style={{
+          background: "rgba(56,189,248,.06)", border: "1px solid rgba(56,189,248,.25)",
+          borderRadius: 12, padding: "12px 16px", marginBottom: 14
+        }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#38bdf8", marginBottom: 6 }}>❄️ Cool-down</div>
+          <div style={{ fontSize: 12, color: "var(--muted2)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{sel.workoutCooldown}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── HOW TO USE ───────────────────────────────────────────────────────────────
+// 1. Place the CoachWorkoutTab function ABOVE CoachDash (outside it entirely).
+//
+// 2. Inside CoachDash, find this block and DELETE it:
+//
+//     {innerTab === "workout" && (() => {
+//       const wp = sel.workoutPlan || DEFAULT_WORKOUT;
+//       const [viewDay, setViewDay] = useState(0);        // ← illegal hook in IIFE
+//       ...
+//     })()}
+//
+// 3. Replace it with this single line:
+//
+//     {innerTab === "workout" && (
+//       <CoachWorkoutTab
+//         sel={sel}
+//         setShowWorkoutEditor={setShowWorkoutEditor}
+//         setVideoModal={setVideoModal}
+//       />
+//     )}
 // ─── MEAL EDITOR ──────────────────────────────────────────────────────────────
 function MealEditor({ plan, onClose, clientSources, autoSave }) {
   const [meals, setMeals] = useState(JSON.parse(JSON.stringify(plan)));
@@ -1425,13 +1906,23 @@ const [compareSelections, setCompareSelections] = useState([]);
   );
 
   if (tab === "chat") return (
-    <div className="page">
-      <div style={{ marginBottom: 18 }}><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Chat with Coach</div><div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>Messages saved even after sign out</div></div>
-      {coachId ? <div className="card"><ChatPanel currentUid={uid} otherUid={coachId} currentName={d.name || "Client"} otherName="Coach Ankit" /></div> : <div className="card"><div className="empty"><span className="empty-icon">💬</span><div className="empty-title">Chat not available</div></div></div>}
+    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden" }}>
+      {/* Header */}
+      <div style={{ padding: "16px 16px 10px", flexShrink: 0 }}>
+        <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 20, fontWeight: 800 }}>Chat with Coach</div>
+        <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 3 }}>Messages saved even after sign out</div>
+      </div>
+      {/* Chat fills remaining space above bottom nav */}
+      <div style={{ flex: 1, overflow: "hidden", padding: "0 12px", paddingBottom: "env(safe-area-inset-bottom)" }}>
+        {coachId
+          ? <ChatFullHeight currentUid={uid} otherUid={coachId} currentName={d.name || "Client"} otherName="Coach Ankit" />
+          : <div className="card" style={{ margin: "0 4px" }}><div className="empty"><span className="empty-icon">💬</span><div className="empty-title">Chat not available</div></div></div>
+        }
+      </div>
     </div>
   );
 
-  if (tab === "training") return <WorkoutFullscreen workout={workout} phase={d.phase} week={d.week} onClose={() => setTab("home")} />;
+  if (tab === "training") return <WorkoutFullscreen workout={workout} phase={d.phase} week={d.week} warmup={d.workoutWarmup || ""} cooldown={d.workoutCooldown || ""} onClose={() => setTab("home")} />;
 
   
   if (tab === "nutrition") {
@@ -1555,11 +2046,14 @@ const [compareSelections, setCompareSelections] = useState([]);
         </div>
 
         {uploading && (
-          <div className="card" style={{ marginBottom: 14 }}>
-            <div style={{ fontWeight: 700, color: "var(--green)", marginBottom: 8 }}>Uploading {uploadPct}%</div>
-            <div className="prog-bar"><div className="prog-fill" style={{ width: uploadPct + "%", background: "var(--green)" }} /></div>
-          </div>
-        )}
+  <div style={{ position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)", background: "var(--s1)", border: "1px solid var(--green-b)", borderRadius: 14, padding: "14px 22px", zIndex: 500, display: "flex", alignItems: "center", gap: 14, boxShadow: "0 8px 32px rgba(0,0,0,.5)", minWidth: 260, animation: "bounceIn .3s ease" }}>
+    <div style={{ width: 36, height: 36, borderRadius: "50%", border: "3px solid var(--border)", borderTopColor: "var(--green)", animation: "sp .8s linear infinite", flexShrink: 0 }} />
+    <div>
+      <div style={{ fontWeight: 700, color: "var(--green)", fontSize: 13 }}>Uploading photo... {uploadPct}%</div>
+      <div className="prog-bar" style={{ width: 160, marginTop: 6 }}><div className="prog-fill" style={{ width: uploadPct + "%", background: "var(--green)" }} /></div>
+    </div>
+  </div>
+)}
 
         {/* Tip */}
         <div style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.25)", borderRadius: 12, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "var(--muted2)" }}>
@@ -1712,16 +2206,48 @@ const [compareSelections, setCompareSelections] = useState([]);
       </div>
       <div className="sh"><div className="sh-title">This Week</div><button className="sh-link" onClick={() => setTab("training")}>Full plan</button></div>
       <div className="card stagger-4" style={{ marginBottom: 20 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 6 }}>
-          {workout.map((day, i) => {
-            const dc = DAY_COLORS[i % DAY_COLORS.length];
-            return <div key={i} className={day.type === "Rest" ? "wk-card rest" : "wk-card"} style={{ borderTop: "3px solid " + dc.accent, padding: "10px 4px", animationDelay: i * 0.05 + "s" }} onClick={() => day.type !== "Rest" && setTab("training")}>
-              <div style={{ fontSize: 8, fontWeight: 700, textTransform: "uppercase", color: dc.accent, marginBottom: 3 }}>{day.day.slice(0, 3)}</div>
-              <div style={{ fontSize: 9, fontWeight: 700, color: WCOLOR[day.type] || "#475569" }}>{day.type}</div>
-            </div>;
-          })}
-        </div>
-      </div>
+  <div style={{ background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+    {/* Header row */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", borderBottom: "1px solid var(--border)" }}>
+      {workout.map((day, i) => {
+        const dc = DAY_COLORS[i % DAY_COLORS.length];
+        return (
+          <div key={i} style={{ padding: "8px 4px", textAlign: "center", borderRight: i < 6 ? "1px solid var(--border)" : "none", background: "var(--s3)" }}>
+            <div style={{ fontSize: 9, fontWeight: 800, color: dc.accent, letterSpacing: ".07em" }}>{day.day.slice(0, 3).toUpperCase()}</div>
+          </div>
+        );
+      })}
+    </div>
+    {/* Type row */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
+      {workout.map((day, i) => {
+        const dc = DAY_COLORS[i % DAY_COLORS.length];
+        const typeColor = WCOLOR[day.type] || "#475569";
+        return (
+          <div key={i}
+            onClick={() => day.type !== "Rest" && setTab("training")}
+            style={{
+              padding: "12px 4px", textAlign: "center",
+              borderRight: i < 6 ? "1px solid var(--border)" : "none",
+              cursor: day.type !== "Rest" ? "pointer" : "default",
+              background: day.type === "Rest" ? "rgba(0,0,0,.15)" : "transparent",
+              transition: "background .15s", opacity: day.type === "Rest" ? 0.5 : 1
+            }}
+            onMouseEnter={e => { if (day.type !== "Rest") e.currentTarget.style.background = dc.bg; }}
+            onMouseLeave={e => { e.currentTarget.style.background = day.type === "Rest" ? "rgba(0,0,0,.15)" : "transparent"; }}
+          >
+            <div style={{ display: "inline-flex", padding: "3px 7px", borderRadius: 20, fontSize: 9, fontWeight: 800, background: typeColor + "20", color: typeColor, border: "1px solid " + typeColor + "40" }}>
+              {day.type === "Rest" ? "Rest" : day.type}
+            </div>
+            {day.type !== "Rest" && (
+              <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 4, fontWeight: 600 }}>{day.exercises.length}ex</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </div>
+</div>
       {(d.weightHistory || []).length > 1 && (
         <div className="card stagger-5" style={{ marginBottom: 24 }}>
           <div className="card-title">Weight Progress</div>
@@ -1759,6 +2285,11 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
   const [videoModal, setVideoModal] = useState(null);
   const [nc] = useState({});
   const [clientProfileOpen, setClientProfileOpen] = useState(false);
+  const [showRenewModal, setShowRenewModal] = useState(false);
+  const [dashModal, setDashModal] = useState(null);
+  const [renewForm, setRenewForm] = useState({
+  planName: "", planType: "Cut", primaryGoal: "Fat Loss", planDuration: 12
+});
 
   useEffect(() => {
     const q = query(collection(db, "clients"), where("coachId", "==", coachUid));
@@ -1774,7 +2305,14 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
   const update = async (f, v) => { if (!selId) return; await updateDoc(doc(db, "clients", selId), { [f]: v }); };
   const updateN = async (f, v) => { if (!selId) return; await updateDoc(doc(db, "clients", selId), { ["nutrition." + f]: parseInt(v) || 0 }); };
   const sendMessage = async () => { if (!msgText.trim() || !selId) return; setSendingMsg(true); await updateDoc(doc(db, "clients", selId), { coachMessage: msgText.trim() }); toast("Message sent!", "success"); setMsgText(""); setSendingMsg(false); };
-  const autoSaveWorkout = async (plan) => { await updateDoc(doc(db, "clients", selId), { workoutPlan: plan }); toast("Workout saved!", "success"); };
+  const autoSaveWorkout = async (plan, warmup, cooldown) => {
+    await updateDoc(doc(db, "clients", selId), {
+      workoutPlan: plan,
+      workoutWarmup: warmup ?? "",
+      workoutCooldown: cooldown ?? "",
+    });
+    toast("Workout saved!", "success");
+  };
   const autoSaveMeals = async (plan) => {
     const cal = plan.reduce((a, m) => a + m.items.reduce((b, i) => b + (i.cal || 0), 0), 0);
     const pro = plan.reduce((a, m) => a + m.items.reduce((b, i) => b + (i.protein || 0), 0), 0);
@@ -1880,11 +2418,20 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
           <div style={{ fontWeight: 700, fontSize: 13, color: accessStatus === "active" ? "var(--green)" : accessStatus === "paused" ? "var(--yellow)" : "var(--red)" }}>
             {accessStatus === "active" ? "✓ Client Access Active" : accessStatus === "paused" ? "⏸ Client Login Paused — they cannot sign in" : "🚫 Client Terminated"}
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {accessStatus !== "active" && <button className="btn btn-p btn-sm" onClick={() => setClientAccess(selId, "active")}>▶ Resume</button>}
-            {accessStatus === "active" && <button className="btn btn-warn btn-sm" onClick={() => setClientAccess(selId, "paused")}>⏸ Pause</button>}
-            {accessStatus !== "terminated" && <button className="btn btn-d btn-sm" onClick={() => setClientAccess(selId, "terminated")}>🚫 Terminate</button>}
-          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+  {accessStatus !== "active" && <button className="btn btn-p btn-sm" onClick={() => setClientAccess(selId, "active")}>▶ Resume</button>}
+  {accessStatus === "active" && <button className="btn btn-warn btn-sm" onClick={() => setClientAccess(selId, "paused")}>⏸ Pause</button>}
+  {accessStatus !== "terminated" && <button className="btn btn-d btn-sm" onClick={() => setClientAccess(selId, "terminated")}>🚫 Terminate</button>}
+  <button className="btn btn-blue btn-sm" onClick={() => {
+    setRenewForm({
+      planName: sel.planName || sel.phase || "",
+      planType: sel.planType || "Cut",
+      primaryGoal: sel.primaryGoal || "Fat Loss",
+      planDuration: sel.planDuration || 12
+    });
+    setShowRenewModal(true);
+  }}>🔄 Renew</button>
+</div>
         </div>
 
         <div className="tab-bar">
@@ -2104,35 +2651,13 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
           </div>
         )}
 
-        {innerTab === "workout" && (
-          <div className="card">
-            <div className="card-title">
-              Workout Plan
-              <button className="btn btn-p btn-sm" onClick={() => setShowWorkoutEditor(true)}>✏ Edit Plan</button>
-            </div>
-            <div className="alert alert-g" style={{ marginBottom: 16 }}>Click "Edit Plan" to see the full grid and edit each day separately.</div>
-            {/* Mini preview grid */}
-            <div style={{ background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden", marginBottom: 12 }}>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${(sel.workoutPlan || DEFAULT_WORKOUT).length}, 1fr)`, borderBottom: "1px solid var(--border)" }}>
-                {(sel.workoutPlan || DEFAULT_WORKOUT).map((day, di) => {
-                  const dc = DAY_COLORS[di % DAY_COLORS.length];
-                  return <div key={di} style={{ padding: "8px 4px", textAlign: "center", borderRight: di < (sel.workoutPlan || DEFAULT_WORKOUT).length - 1 ? "1px solid var(--border)" : "none", background: "var(--s3)", fontSize: 9, fontWeight: 800, color: dc.accent, letterSpacing: ".08em" }}>{dc.label}</div>;
-                })}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${(sel.workoutPlan || DEFAULT_WORKOUT).length}, 1fr)` }}>
-                {(sel.workoutPlan || DEFAULT_WORKOUT).map((day, di) => {
-                  const typeColor = WCOLOR[day.type] || "#475569";
-                  return (
-                    <div key={di} style={{ padding: "12px 4px", textAlign: "center", borderRight: di < (sel.workoutPlan || DEFAULT_WORKOUT).length - 1 ? "1px solid var(--border)" : "none", background: day.type === "Rest" ? "var(--s2)" : "transparent", opacity: day.type === "Rest" ? 0.5 : 1 }}>
-                      <div style={{ display: "inline-flex", padding: "3px 8px", borderRadius: 20, fontSize: 10, fontWeight: 700, background: typeColor + "22", color: typeColor, border: "1px solid " + typeColor + "55" }}>{day.type}</div>
-                      {day.type !== "Rest" && <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 4 }}>{day.exercises.length}ex</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
+{innerTab === "workout" && (
+  <CoachWorkoutTab
+    sel={sel}
+    setShowWorkoutEditor={setShowWorkoutEditor}
+    setVideoModal={setVideoModal}
+  />
+)}
 
         {innerTab === "meals" && (() => {
           const mealPlan = sel.mealPlan || DEFAULT_MEALS;
@@ -2180,6 +2705,112 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
             </div>
           );
         })()}
+        {/* ── RENEW MODAL ── */}
+{showRenewModal && (
+  <div className="ov" onClick={e => e.target === e.currentTarget && setShowRenewModal(false)}>
+    <div className="modal">
+      <div className="mh">
+        <div>
+          <div className="mt">🔄 Renew {sel.name}'s Plan</div>
+          <div className="ms">Resets week to 1 and activates client access</div>
+        </div>
+        <button className="xbtn" onClick={() => setShowRenewModal(false)}>✕</button>
+      </div>
+      <div className="mb2">
+
+        {/* Primary Goal */}
+        <div className="fld" style={{ marginBottom: 18 }}>
+          <div className="fl" style={{ color: "var(--orange)" }}>Primary Goal</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(130px,1fr))", gap: 8 }}>
+            {["Fat Loss","Muscle Gain","Recomposition","Strength","Endurance","Maintenance","Sports Performance","General Fitness"].map(g => (
+              <button key={g} onClick={() => setRenewForm(p => ({ ...p, primaryGoal: g }))}
+                style={{ padding: "9px 10px", borderRadius: 10, border: "1.5px solid",
+                  cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "'DM Sans',sans-serif",
+                  borderColor: renewForm.primaryGoal === g ? "var(--orange)" : "var(--border)",
+                  background: renewForm.primaryGoal === g ? "rgba(251,146,60,.12)" : "var(--s2)",
+                  color: renewForm.primaryGoal === g ? "var(--orange)" : "var(--muted)",
+                  transition: "all .15s" }}>
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Plan Type */}
+        <div className="fld" style={{ marginBottom: 18 }}>
+          <div className="fl" style={{ color: "var(--green)" }}>Plan Type</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[
+              { key: "Cut",   label: "Cut",         desc: "Caloric deficit — fat loss focus" },
+              { key: "Bulk",  label: "Bulk",         desc: "Caloric surplus — muscle gain focus" },
+              { key: "Maint", label: "Maintenance",  desc: "TDEE — body recomposition" },
+              { key: "Peak",  label: "Peak Week",    desc: "Competition / event prep" },
+              { key: "Other", label: "Other",        desc: "Custom plan" },
+            ].map(plan => (
+              <button key={plan.key} onClick={() => setRenewForm(p => ({ ...p, planType: plan.key }))}
+                style={{ padding: "12px", borderRadius: 12, border: "2px solid",
+                  cursor: "pointer", textAlign: "left", transition: "all .18s",
+                  borderColor: renewForm.planType === plan.key ? "var(--green)" : "var(--border)",
+                  background: renewForm.planType === plan.key ? "var(--green-bg)" : "var(--s2)" }}>
+                <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13,
+                  color: renewForm.planType === plan.key ? "var(--green)" : "var(--text)" }}>{plan.label}</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>{plan.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Plan Name */}
+        <div className="fld">
+          <div className="fl">Plan Name</div>
+          <input className="fi" placeholder="e.g. 12-Week Cut Phase 2"
+            value={renewForm.planName}
+            onChange={e => setRenewForm(p => ({ ...p, planName: e.target.value }))} />
+        </div>
+
+        {/* Duration */}
+        <div className="fld" style={{ marginBottom: 20 }}>
+          <div className="fl" style={{ color: "var(--blue)" }}>Duration (weeks)</div>
+          <div className="num-input">
+            <button className="num-btn" onClick={() => setRenewForm(p => ({ ...p, planDuration: Math.max(1, p.planDuration - 1) }))}>-</button>
+            <input type="number" value={renewForm.planDuration}
+              onChange={e => setRenewForm(p => ({ ...p, planDuration: parseInt(e.target.value) || 1 }))}
+              style={{ color: "var(--blue)", fontWeight: 800, textAlign: "center" }} />
+            <button className="num-btn" onClick={() => setRenewForm(p => ({ ...p, planDuration: p.planDuration + 1 }))}>+</button>
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div style={{ background: "var(--green-bg)", border: "1px solid var(--green-b)", borderRadius: 10,
+          padding: "12px 14px", marginBottom: 16, fontSize: 12, color: "var(--muted2)", lineHeight: 1.7 }}>
+          <div style={{ fontWeight: 700, color: "var(--green)", marginBottom: 4 }}>✓ Renewal Summary</div>
+          <div>Goal: <strong style={{ color: "var(--orange)" }}>{renewForm.primaryGoal}</strong></div>
+          <div>Plan: <strong style={{ color: "var(--text)" }}>{renewForm.planName || "(unnamed)"}</strong> — {renewForm.planType}</div>
+          <div>Duration: <strong style={{ color: "var(--blue)" }}>{renewForm.planDuration} weeks</strong></div>
+          <div style={{ marginTop: 4, color: "var(--green)" }}>Week resets to 1 · Access set to Active</div>
+        </div>
+
+        <button className="btn btn-p" style={{ width: "100%", padding: 14, fontSize: 15 }}
+          onClick={async () => {
+            await updateDoc(doc(db, "clients", selId), {
+              planName:     renewForm.planName || renewForm.planType,
+              planType:     renewForm.planType,
+              primaryGoal:  renewForm.primaryGoal,
+              planDuration: renewForm.planDuration,
+              phase:        renewForm.planName || renewForm.planType,
+              week:         1,
+              accessStatus: "active",
+              lastWeekUpdate: "",
+            });
+            toast(`${sel.name}'s plan renewed! Week reset to 1.`, "success");
+            setShowRenewModal(false);
+          }}>
+          ✓ Confirm Renewal
+        </button>
+      </div>
+    </div>
+  </div>
+)}
         </div>
       );
     }
@@ -2201,7 +2832,30 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
                 const status = c.accessStatus || "active";
                 return (
                   <tr key={c.id}>
-                    <td><div style={{ display: "flex", alignItems: "center", gap: 9 }}><div className="av av-sm av-g">{c.avatar}</div><div><div style={{ fontWeight: 600 }}>{c.name}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>{c.email}</div></div></div></td>
+                    <td><div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+  <label style={{ cursor: "pointer", flexShrink: 0 }} title="Click to upload client photo">
+    <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      const fd = new FormData(); fd.append("file", file); fd.append("upload_preset", "coachkit_upload"); fd.append("folder", "client_photos");
+      try {
+        const res = await fetch(`https://api.cloudinary.com/v1_1/dputo3zsh/image/upload`, { method: "POST", body: fd });
+        const data = await res.json();
+        await updateDoc(doc(db, "clients", c.id), { photoUrl: data.secure_url });
+        toast("Photo updated!", "success");
+      } catch { toast("Upload failed", "error"); }
+      e.target.value = "";
+    }} />
+    <div style={{ width: 32, height: 32, borderRadius: "50%", overflow: "hidden", border: "1.5px solid var(--green-b)", position: "relative" }}>
+      {c.photoUrl
+        ? <img src={c.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        : <div className="av av-sm av-g" style={{ width: "100%", height: "100%", borderRadius: "50%" }}>{c.avatar}</div>
+      }
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.45)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity .2s" }}
+        onMouseEnter={e => e.currentTarget.style.opacity = 1} onMouseLeave={e => e.currentTarget.style.opacity = 0}>
+        <span style={{ fontSize: 10, color: "#fff", fontWeight: 700 }}>📷</span>
+      </div>
+    </div>
+  </label><div><div style={{ fontWeight: 600 }}>{c.name}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>{c.email}</div></div></div></td>
                     <td><span className="bdg bdg-g">{c.phase}</span></td>
                     <td>{status === "active" ? <span className="access-badge-active">✓ Active</span> : status === "paused" ? <span className="access-badge-paused">⏸ Paused</span> : <span className="access-badge-terminated">🚫 Terminated</span>}</td>
                     <td style={{ fontWeight: 600 }}>{c.weight ? c.weight + "kg" : "-"}</td>
@@ -2228,11 +2882,96 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
         <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 26, fontWeight: 800 }}>Welcome back, {coachName?.split(" ")[0] || "Ankit"} 👋</div>
         <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>{clients.length} client{clients.length !== 1 ? "s" : ""} — Fit with Ankit Dashboard</div>
       </div>
-      <div className="g4" style={{ marginBottom: 24 }}>
-        {[["Total Clients", clients.length, "var(--green)"], ["Weekly Check-ins", clients.reduce((a, c) => a + (c.weeklyCheckins || []).length, 0), "var(--blue)"], ["Paused", clients.filter(c => c.accessStatus === "paused").length, "var(--yellow)"], ["Need Attention", clients.filter(c => !c.coachMessage).length, "var(--orange)"]].map(([l, v, co], i) => (
-          <div key={l} style={{ animationDelay: i * 0.09 + "s" }}><div className="mc"><div className="mc-val" style={{ color: co }}>{v}</div><div className="mc-label">{l}</div></div></div>
-        ))}
+      
+
+<div className="g4" style={{ marginBottom: 24 }}>
+  {(() => {
+    const activeClients = clients.filter(c => (c.accessStatus || "active") === "active");
+    const endingSoon = clients.filter(c => {
+      if (!c.planDuration || !c.week) return false;
+      const weeksLeft = parseInt(c.planDuration) - parseInt(c.week) + 1;
+      return weeksLeft <= 1 && weeksLeft >= 0;
+    });
+    const checkinCount = clients.reduce((a, c) => a + (c.weeklyCheckins || []).length, 0);
+    const noMessage = clients.filter(c => !c.coachMessage);
+    const tiles = [
+      { label: "Total Clients",     val: clients.length,      color: "var(--green)",  key: "all"     },
+      { label: "Active Clients",    val: activeClients.length, color: "var(--blue)",   key: "active"  },
+      { label: "Plans Ending Soon", val: endingSoon.length,    color: endingSoon.length > 0 ? "var(--red)" : "var(--yellow)", key: "ending" },
+      { label: "Need Message",      val: noMessage.length,     color: "var(--orange)", key: "nomsg"   },
+    ];
+    const modalData = {
+      all:    { title: "All Clients",         list: clients },
+      active: { title: "Active Clients",      list: activeClients },
+      ending: { title: "Plans Ending This Week", list: endingSoon },
+      nomsg:  { title: "Clients Without Message", list: noMessage },
+    };
+    return tiles.map(({ label, val, color, key }, i) => (
+      <div key={key} style={{ animationDelay: i * 0.09 + "s", cursor: "pointer" }}
+        onClick={() => setDashModal(key)}>
+        <div className="mc" style={{ border: "1px solid var(--border)", transition: "all .18s" }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = color}
+          onMouseLeave={e => e.currentTarget.style.borderColor = "var(--border)"}>
+          <div className="mc-val" style={{ color }}>{val}</div>
+          <div className="mc-label">{label}</div>
+          <div style={{ fontSize: 9, color: "var(--muted)", marginTop: 3 }}>tap to view →</div>
+        </div>
       </div>
+    ));
+  })()}
+  {/* ── DASH MODAL ── */}
+{dashModal && (() => {
+  const activeClients = clients.filter(c => (c.accessStatus || "active") === "active");
+  const endingSoon = clients.filter(c => {
+    if (!c.planDuration || !c.week) return false;
+    const weeksLeft = parseInt(c.planDuration) - parseInt(c.week) + 1;
+    return weeksLeft <= 1 && weeksLeft >= 0;
+  });
+  const noMessage = clients.filter(c => !c.coachMessage);
+  const modalData = {
+    all:    { title: "All Clients",              list: clients },
+    active: { title: "Active Clients",           list: activeClients },
+    ending: { title: "Plans Ending This Week",   list: endingSoon },
+    nomsg:  { title: "Clients Without Message",  list: noMessage },
+  };
+  const { title, list } = modalData[dashModal];
+  return (
+    <div className="ov" onClick={() => setDashModal(null)}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="mh">
+          <div><div className="mt">{title}</div><div className="ms">{list.length} client{list.length !== 1 ? "s" : ""}</div></div>
+          <button className="xbtn" onClick={() => setDashModal(null)}>✕</button>
+        </div>
+        <div className="mb2">
+          {list.length === 0
+            ? <div className="empty"><span className="empty-icon">✅</span><div className="empty-title">All clear!</div></div>
+            : list.map((c, i) => {
+                const weeksLeft = c.planDuration && c.week ? parseInt(c.planDuration) - parseInt(c.week) + 1 : null;
+                return (
+                  <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 0", borderBottom: i < list.length - 1 ? "1px solid var(--border)" : "none", cursor: "pointer" }}
+                    onClick={() => { setDashModal(null); setTab("clients"); setSelId(c.id); setInnerTab("overview"); }}>
+                    {/* Avatar / Photo */}
+                    <div style={{ width: 38, height: 38, borderRadius: "50%", overflow: "hidden", flexShrink: 0, border: "1.5px solid var(--green-b)" }}>
+                      {c.photoUrl
+                        ? <img src={c.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        : <div style={{ width: "100%", height: "100%", background: "var(--green-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13, color: "var(--green)" }}>{c.avatar}</div>
+                      }
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{c.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)" }}>{c.phase} — W{c.week}{weeksLeft !== null ? ` · ${weeksLeft}w left` : ""}</div>
+                    </div>
+                    <span style={{ fontSize: 11, color: "var(--green)" }}>View →</span>
+                  </div>
+                );
+              })
+          }
+        </div>
+      </div>
+    </div>
+  );
+})()}
+</div>
       {clients.length === 0
         ? <div className="card"><div className="empty"><span className="empty-icon">👥</span><div className="empty-title">Ready to go!</div><button className="btn btn-p" onClick={() => setShowAdd(true)}>+ Add First Client</button></div></div>
         : <><div className="sh"><div className="sh-title">Clients</div><button className="sh-link" onClick={() => setTab("clients")}>Manage all</button></div>
@@ -2242,7 +2981,25 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
               return (
                 <div key={c.id} className="cl-card" style={{ animationDelay: idx * 0.07 + "s", opacity: status !== "active" ? 0.75 : 1 }} onClick={() => { setTab("clients"); setSelId(c.id); setInnerTab("overview"); }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 12 }}>
-                    <div className="av av-md av-g">{c.avatar}</div>
+                  <label style={{ cursor: "pointer", flexShrink: 0 }} onClick={e => e.stopPropagation()} title="Click to update photo">
+  <input type="file" accept="image/*" style={{ display: "none" }} onChange={async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    const fd = new FormData(); fd.append("file", file); fd.append("upload_preset", "coachkit_upload"); fd.append("folder", "client_photos");
+    try {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/dputo3zsh/image/upload`, { method: "POST", body: fd });
+      const data = await res.json();
+      await updateDoc(doc(db, "clients", c.id), { photoUrl: data.secure_url });
+      toast("Photo updated!", "success");
+    } catch { toast("Upload failed", "error"); }
+    e.target.value = "";
+  }} />
+  <div style={{ width: 38, height: 38, borderRadius: "50%", overflow: "hidden", border: "1.5px solid var(--green-b)", flexShrink: 0 }}>
+    {c.photoUrl
+      ? <img src={c.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      : <div className="av av-md av-g" style={{ width: "100%", height: "100%", borderRadius: "50%" }}>{c.avatar}</div>
+    }
+  </div>
+</label>
                     <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 700, fontSize: 14 }}>{c.name}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>{c.email}</div></div>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
                       <span className="bdg bdg-g">W{c.week}</span>
@@ -2283,7 +3040,17 @@ function LoginScreen({ onLogin, onSetup, coachExists }) {
         onLogin({ uid, email: em.trim(), role: "client", ...data }); return;
       }
       setErr("Account not found. Contact your coach.");
-    } catch (e) { setErr(e.code === "auth/invalid-credential" || e.code === "auth/wrong-password" ? "Incorrect email or password." : e.message); }
+    } catch (e) {
+      const msgs = {
+        "auth/invalid-credential": "❌ Incorrect email or password.",
+        "auth/wrong-password":     "❌ Incorrect email or password.",
+        "auth/user-not-found":     "❌ No account found with this email.",
+        "auth/too-many-requests":  "⚠️ Too many attempts. Please wait a few minutes.",
+        "auth/network-request-failed": "📶 No internet connection. Check your network.",
+        "auth/user-disabled":      "🚫 This account has been disabled.",
+      };
+      setErr(msgs[e.code] || "Something went wrong. Please try again.");
+    }
     setLd(false);
   };
   const sendReset = async () => { if (!forgotEm) return; setForgotLd(true); try { await sendPasswordResetEmail(auth, forgotEm.trim()); setForgotSent(true); } catch { setErr("Could not send reset email."); } setForgotLd(false); };
@@ -2340,6 +3107,7 @@ function SetupScreen({ onDone }) {
 // ─── ROOT APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const { t, show } = useToast();
+const [networkError, setNetworkError] = useState(false);
   const [user, setUser] = useState(null); const [authLoading, setAuthLoading] = useState(true);
   const [coachExists, setCoachExists] = useState(false); const [screen, setScreen] = useState("login");
   const [tab, setTab] = useState("home"); const [showSplash, setShowSplash] = useState(false);
@@ -2368,6 +3136,7 @@ export default function App() {
         } catch(e) {
           console.error("Auth load error:", e);
           setUser(null);
+          if (e.code === "unavailable" || e.message?.includes("network")) setNetworkError(true);
         }
       } else { setUser(null); }
       setAuthLoading(false);
@@ -2383,7 +3152,24 @@ export default function App() {
   const logout = async () => { await signOut(auth); setUser(null); setTab("home"); splashShownRef.current = false; };
 
   if (showSplash) return <div><style>{CSS}</style><SplashScreen onDone={() => setShowSplash(false)} /></div>;
-  if (authLoading) return <div style={{ background: "#080d1a" }}><style>{CSS}</style><div className="spin-wrap" style={{ minHeight: "100vh" }}><div className="spinner-lg" /></div></div>;
+  if (networkError) return (
+    <div style={{ background: "#080d1a", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <style>{CSS}</style>
+      <div style={{ fontSize: 48, marginBottom: 16 }}>📶</div>
+      <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 22, color: "var(--text)", marginBottom: 8 }}>Connection Issue</div>
+      <div style={{ fontSize: 14, color: "var(--muted)", textAlign: "center", marginBottom: 24, maxWidth: 300 }}>Check your internet connection and try again.</div>
+      <button className="btn btn-p" onClick={() => { setNetworkError(false); window.location.reload(); }}>🔄 Try Again</button>
+    </div>
+  );
+  if (authLoading) return (
+    <div style={{ background: "#080d1a", minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <style>{CSS}</style>
+      <div style={{ width: 56, height: 56, borderRadius: 16, background: "linear-gradient(135deg,#22c55e,#16a34a)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 18, color: "#fff", marginBottom: 20, animation: "float 2s ease infinite" }}>FwA</div>
+      <div className="spinner-lg" style={{ marginBottom: 16 }} />
+      <div style={{ color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>Loading your dashboard...</div>
+      <div style={{ marginTop: 8, fontSize: 11, color: "var(--muted)", opacity: 0.6 }}>Checking your connection</div>
+    </div>
+  );
 
   if (!user) return (
     <div><style>{CSS}</style>
