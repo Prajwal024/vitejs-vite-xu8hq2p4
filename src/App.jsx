@@ -302,7 +302,7 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 
 /* ── FULLSCREEN WORKOUT EDITOR (coach) ── */
 .wke-overlay{position:fixed;inset:0;background:var(--bg);z-index:300;display:flex;flex-direction:column;overflow:hidden;animation:fadeUp .3s ease}
-.wke-topbar{background:rgba(8,13,26,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.wke-topbar{background:rgba(8,13,26,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 12px;min-height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:6px}
 .wke-body{flex:1;overflow-y:auto;padding:28px 24px 48px;max-width:900px;margin:0 auto;width:100%}
 .ex-editor-card{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:14px;animation:fadeUp .25s ease both;transition:border-color .2s}
 .autosave{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--green);font-weight:600;opacity:0;transition:opacity .3s}
@@ -310,15 +310,14 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 
 /* ── FULLSCREEN ADD CLIENT ── */
 .addclient-overlay{position:fixed;inset:0;background:var(--bg);z-index:300;display:flex;flex-direction:column;overflow:hidden;animation:fadeUp .3s ease}
-.addclient-topbar{background:rgba(8,13,26,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.addclient-topbar{background:rgba(8,13,26,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 16px;min-height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;flex-wrap:wrap;gap:8px}
 .addclient-body{flex:1;overflow-y:auto;padding:32px 24px 60px;max-width:780px;margin:0 auto;width:100%}
 .ac-section{background:var(--s1);border:1px solid var(--border);border-radius:14px;padding:22px;margin-bottom:18px;animation:cardEntrance .4s ease both}
 .ac-section-title{font-family:'Outfit',sans-serif;font-weight:800;font-size:16px;margin-bottom:18px;display:flex;align-items:center;gap:10px}
 .ac-section-icon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
 
 /* ── CLIENT FULLSCREEN WORKOUT ── */
-.wk-fullscreen{position:fixed;inset:0;background:#080d1a;z-index:300;display:flex;flex-direction:column;overflow:hidden;animation:fadeUp .3s ease;padding-top:0}
-.wk-fs-nav{background:rgba(8,13,26,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 24px;padding-top:env(safe-area-inset-top);min-height:calc(58px + env(safe-area-inset-top));display:flex;align-items:flex-end;padding-bottom:10px;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:10}
+.wk-fullscreen{position:fixed;inset:0;background:#080d1a;z-index:300;display:flex;flex-direction:column;overflow:hidden;animation:fadeUp .3s ease}
 .wk-fs-nav{background:rgba(8,13,26,.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .wk-fs-body{flex:1;overflow-y:auto;padding:32px 24px 48px;max-width:800px;margin:0 auto;width:100%}
 .wk-day-selector{display:flex;gap:8px;margin-bottom:28px;flex-wrap:wrap}
@@ -455,6 +454,13 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
   /* ── FORMS ── */
   .fi{font-size:16px} /* prevents iOS zoom on input focus */
   .fsel{font-size:16px}
+  .wke-topbar{padding:8px 10px;flex-wrap:wrap;height:auto}
+  .addclient-topbar{padding:8px 10px;flex-wrap:wrap;height:auto}
+  .wke-body{padding:16px 12px 48px}
+  .addclient-body{padding:16px 12px 48px}
+  .ex-editor-card{padding:14px 12px}
+  .wk-fs-nav{padding:0 10px;min-height:52px}
+  .wk-fs-body{padding:16px 10px 48px}
 }
 
 /* landscape mobile — use top nav, hide bottom */
@@ -963,22 +969,9 @@ function WorkoutFullscreen({ workout, phase, week, warmup, cooldown, onClose }) 
 
   return (
     <div className="wk-fullscreen">
-      <div className="wk-fs-nav" style={{ paddingTop: "max(0px, env(safe-area-inset-top))", minHeight: "calc(58px + env(safe-area-inset-top))" }}>
-  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-    <button 
-      className="btn btn-s btn-sm" 
-      onClick={onClose}
-      style={{ 
-        padding: "10px 18px", 
-        fontSize: 14, 
-        fontWeight: 700,
-        background: "rgba(248,113,113,.15)",
-        borderColor: "rgba(248,113,113,.4)",
-        color: "var(--red)",
-        minHeight: 44,
-        minWidth: 80
-      }}
-    >← Exit</button>
+      <div className="wk-fs-nav">
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <button className="btn btn-s btn-sm" onClick={onClose}>← Back</button>
           <div>
             <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16 }}>Workout Plan</div>
             <div style={{ fontSize: 11, color: "var(--muted)" }}>{phase} — Week {week}</div>
@@ -1256,7 +1249,7 @@ const triggerAutoSaveCooldown = (val) => {
                     <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13, color: dc.accent, textTransform: "uppercase", letterSpacing: ".05em" }}>Exercise {ei + 1}</div>
                     <button className="btn btn-d btn-xs" style={{ marginLeft: "auto" }} onClick={() => removeEx(editingDay, ei)}>✕ Remove</button>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "2fr 80px 100px 80px", gap: 10, marginBottom: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 64px 80px 64px", gap: 8, marginBottom: 12 }}>
                     <div><div className="fl">Exercise Name</div><input className="fi" value={ex.name} onChange={e => updateEx(editingDay, ei, "name", e.target.value)} placeholder="e.g. Bench Press" style={{ borderColor: dc.border }} /></div>
                     <div><div className="fl">Sets</div><input className="fi" type="number" value={ex.sets} onChange={e => updateEx(editingDay, ei, "sets", parseInt(e.target.value) || 1)} style={{ borderColor: dc.border, textAlign: "center", fontWeight: 700 }} /></div>
                     <div><div className="fl">Reps</div><input className="fi" value={ex.reps} onChange={e => updateEx(editingDay, ei, "reps", e.target.value)} placeholder="10-12" style={{ borderColor: dc.border, textAlign: "center" }} /></div>
@@ -1296,11 +1289,12 @@ const triggerAutoSaveCooldown = (val) => {
             <div style={{ fontSize: 11, color: "var(--muted)" }}>Click any day to edit exercises</div>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span className={`autosave ${autoSaved ? "show" : ""}`}>✓ Saved</span>
-          <button className="btn btn-s btn-sm" onClick={addDay}>+ Add Day</button>
-          <button className="btn btn-p btn-sm" onClick={onClose}>Save & Close</button>
-        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "60vw" }}>
+  <span className={`autosave ${autoSaved ? "show" : ""}`}>✓ Saved</span>
+  <button className="btn btn-s btn-sm" disabled={editingDay === 0} onClick={() => setEditingDay(d => d - 1)}>← Prev</button>
+  <button className="btn btn-s btn-sm" disabled={editingDay === days.length - 1} onClick={() => setEditingDay(d => d + 1)}>Next →</button>
+  <button className="btn btn-p btn-sm" onClick={() => setEditingDay(null)}>Done ✓</button>
+</div>
       </div>
       <div className="wke-body">
         {/* ── Grid like your image ── */}
@@ -1690,21 +1684,21 @@ function AddClientFullscreen({ coachUid, coachEmail, onClose, onSuccess }) {
   return (
     <div className="addclient-overlay">
       {/* Top bar */}
-      <div className="addclient-topbar">
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <button className="btn btn-s btn-sm" onClick={onClose}>✕ Cancel</button>
-          <div>
-            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18 }}>Add New Client</div>
-            <div style={{ fontSize: 11, color: "var(--muted)" }}>Fill in details then click Create</div>
-          </div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {err && <div style={{ fontSize: 12, color: "var(--red)", maxWidth: 280 }}>{err}</div>}
-          <button className="btn btn-p" onClick={save} disabled={saving} style={{ padding: "10px 28px", fontSize: 14 }}>
-            {saving ? "Creating Account..." : "✓ Create Client"}
-          </button>
-        </div>
+      <div className="addclient-topbar" style={{ flexDirection: "column", height: "auto", padding: "10px 16px", gap: 8, alignItems: "stretch" }}>
+  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <button className="btn btn-s btn-sm" onClick={onClose}>✕</button>
+      <div>
+        <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15 }}>Add New Client</div>
+        <div style={{ fontSize: 11, color: "var(--muted)" }}>Fill in details then click Create</div>
       </div>
+    </div>
+    <button className="btn btn-p btn-sm" onClick={save} disabled={saving} style={{ flexShrink: 0 }}>
+      {saving ? "Creating..." : "✓ Create"}
+    </button>
+  </div>
+  {err && <div style={{ fontSize: 12, color: "var(--red)", padding: "4px 0" }}>{err}</div>}
+</div>
 
       {/* Body */}
       <div className="addclient-body">
@@ -1984,7 +1978,7 @@ const [compareSelections, setCompareSelections] = useState([]);
   }
 
   if (tab === "photos") {
-    const POSES = ["Front", "Back", "Side", "Front Double Biceps", "Back Double Biceps"];
+    const POSES = ["Front", "Back", "Side"];
     const currentWeek = d.week || 1;
     const clientPhotos = d.photos || [];
     
@@ -2090,7 +2084,7 @@ const [compareSelections, setCompareSelections] = useState([]);
               </span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
               {POSES.map(pose => {
                 const photo = getPhoto(week, pose);
                 const selectKey = week + "_" + pose;
@@ -2098,7 +2092,7 @@ const [compareSelections, setCompareSelections] = useState([]);
                 return (
                   <div key={pose}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6, textAlign: "center" }}>
-                    {pose === "Front" ? "🔵" : pose === "Back" ? "🟢" : pose === "Side" ? "🟡" : pose === "Front Double Biceps" ? "💪" : "🔥"} {pose}
+                      {pose === "Front" ? "🔵" : pose === "Back" ? "🟢" : "🟡"} {pose}
                     </div>
                     {photo ? (
                       <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "3/4", border: isSelected ? "3px solid var(--blue)" : "2px solid var(--border)", cursor: "pointer", transition: "border-color .2s" }}
@@ -2619,28 +2613,19 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
             </div>
             <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>{photos.length} file{photos.length !== 1 ? "s" : ""}</span>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(110px,1fr))", gap: 10 }}>
-  {photos.map((p, i) => (
-    <div key={i} className="photo-item">
-      <div onClick={() => setViewMedia(p)} style={{ width: "100%", height: "100%" }}>
-        {p.type === "video"
-          ? <><video src={p.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><div className="video-badge">Video</div></>
-          : <img src={p.url} alt="" />}
-      </div>
-      <div className="photo-label" style={{ fontSize: 9 }}>
-        {p.pose
-          ? (p.pose === "Front" ? "🔵 Front"
-            : p.pose === "Back" ? "🟢 Back"
-            : p.pose === "Side" ? "🟡 Side"
-            : p.pose === "Front Double Biceps" ? "💪 Front DB"
-            : p.pose === "Back Double Biceps" ? "🔥 Back DB"
-            : p.pose)
-          : p.date}
-      </div>
-      <button className="photo-del" onClick={e => { e.stopPropagation(); deleteClientPhoto(p); }}>✕</button>
-    </div>
-  ))}
-</div>
+          <div className="photo-grid">
+            {photos.map((p, i) => (
+              <div key={i} className="photo-item">
+                <div onClick={() => setViewMedia(p)} style={{ width: "100%", height: "100%" }}>
+                  {p.type === "video"
+                    ? <><video src={p.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} /><div className="video-badge">Video</div></>
+                    : <img src={p.url} alt="" />}
+                </div>
+                <div className="photo-label">{p.date}</div>
+                <button className="photo-del" onClick={e => { e.stopPropagation(); deleteClientPhoto(p); }}>✕</button>
+              </div>
+            ))}
+          </div>
         </div>
       ))}
     </div>
@@ -2847,8 +2832,8 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
       </div>
       {clients.length === 0
         ? <div className="card"><div className="empty"><span className="empty-icon">👥</span><div className="empty-title">No clients yet</div><button className="btn btn-p" onClick={() => setShowAdd(true)}>+ Add First Client</button></div></div>
-        : <div className="card">
-          <table className="tbl">
+        : <div className="card" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+  <table className="tbl" style={{ minWidth: 520 }}>
             <thead><tr><th>Client</th><th>Phase</th><th>Status</th><th>Weight</th><th>Check-ins</th><th>Actions</th></tr></thead>
             <tbody>
               {clients.map(c => {
@@ -3234,19 +3219,9 @@ const [networkError, setNetworkError] = useState(false);
     onClick={() => !isCoach && setTab("profile")}
     style={{ display: "flex", alignItems: "center", gap: 10, cursor: isCoach ? "default" : "pointer" }}
   >
-    <div 
-  className="nav-av" 
-  style={{ 
-    cursor: isCoach ? "default" : "pointer",
-    overflow: "hidden",
-    padding: 0
-  }}
->
-  {!isCoach && user.photoUrl 
-    ? <img src={user.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
-    : (user.name || user.email || "U").slice(0, 2).toUpperCase()
-  }
-</div>
+    <div className="nav-av" style={{ cursor: isCoach ? "default" : "pointer" }}>
+      {(user.name || user.email || "U").slice(0, 2).toUpperCase()}
+    </div>
     <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
       <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>{user.name || user.email}</div>
       <div style={{ fontSize: 10, color: isCoach ? "var(--green)" : "var(--purple)", fontWeight: 600, lineHeight: 1.3 }}>{user.role}</div>
