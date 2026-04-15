@@ -3,6 +3,24 @@ import { doc, updateDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "./firebase";
 
+const CLOUDINARY_CLOUD_NAME = "dputo3zsh";
+const CLOUDINARY_UPLOAD_PRESET = "coachkit_upload";
+
+async function cloudinaryUpload(file, onProgress) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  formData.append("folder", "fitwithankit");
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100)); };
+    xhr.onload = () => { if (xhr.status === 200) resolve(JSON.parse(xhr.responseText)); else reject(new Error("Upload failed: " + xhr.responseText)); };
+    xhr.onerror = () => reject(new Error("Network error"));
+    xhr.send(formData);
+  });
+}
+
 const DEFAULT_MEALS_AC = [
   { name: "Breakfast",   time: "7:00 AM",  items: [{ food: "Oats", amount: "80g", protein: 10, carbs: 54, fats: 5, fiber: 8, cal: 300 }, { food: "Whey Protein", amount: "1 scoop", protein: 25, carbs: 3, fats: 2, fiber: 0, cal: 130 }] },
   { name: "Lunch",       time: "1:00 PM",  items: [{ food: "Chicken Breast", amount: "200g", protein: 46, carbs: 0, fats: 4, fiber: 0, cal: 220 }, { food: "Brown Rice", amount: "150g", protein: 4, carbs: 47, fats: 1, fiber: 3, cal: 210 }] },
@@ -29,7 +47,17 @@ const MEASUREMENT_FIELDS = [
   { key: "arms",   label: "Arms",   color: "var(--yellow)" },
 ];
 
+// ── 5 POSES ──────────────────────────────────────────────────────────────────
+export const POSES = [
+  { key: "Front",              label: "Front",              emoji: "🔵", short: "FR"  },
+  { key: "Back",               label: "Back",               emoji: "🟢", short: "BK"  },
+  { key: "Side",               label: "Side",               emoji: "🟡", short: "SD"  },
+  { key: "Front Double Biceps",label: "Front Double Biceps",emoji: "🔴", short: "FDB" },
+  { key: "Back Double Biceps", label: "Back Double Biceps", emoji: "🟣", short: "BDB" },
+];
+
 export const CSS_ADDITIONS = `
+/* ── MEAL CAT TABS ── */
 .meal-cat-tabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
 .meal-cat-btn{padding:7px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--s1);cursor:pointer;font-family:'Outfit',sans-serif;font-weight:700;font-size:12px;color:var(--muted);transition:all .18s;display:flex;align-items:center;gap:6px}
 .meal-cat-btn.active{border-color:var(--green);background:var(--green-bg);color:var(--green)}
@@ -44,6 +72,8 @@ export const CSS_ADDITIONS = `
 .deficit-fill{height:100%;border-radius:5px;transition:width .8s cubic-bezier(.4,0,.2,1)}
 .macro-pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .macro-pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;border:1px solid;display:flex;align-items:center;gap:5px}
+
+/* ── PROFILE PANEL ── */
 .profile-panel-overlay{position:fixed;inset:0;z-index:400;display:flex;justify-content:flex-end}
 .profile-panel-bg{position:absolute;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(4px)}
 .profile-panel{position:relative;width:360px;max-width:95vw;height:100vh;background:var(--s1);border-left:1px solid var(--border2);overflow-y:auto;display:flex;flex-direction:column;padding-bottom:40px}
@@ -53,6 +83,19 @@ export const CSS_ADDITIONS = `
 .profile-row:last-child{border-bottom:none}
 .profile-row-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);min-width:80px;flex-shrink:0}
 .profile-row-val{font-size:13px;font-weight:600;color:var(--text)}
+
+/* ── MY PROFILE PAGE — mobile-safe ── */
+.profile-page-outer{
+  display:flex;flex-direction:column;
+  height:calc(100dvh - 58px - env(safe-area-inset-bottom));
+  overflow:hidden;
+}
+.profile-page-scroll{
+  flex:1;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:20px 16px calc(80px + env(safe-area-inset-bottom));
+}
 .profile-page-section{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:16px;animation:cardEntrance .4s ease both}
 .profile-page-title{font-family:'Outfit',sans-serif;font-weight:700;font-size:15px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
 .meas-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
@@ -75,11 +118,23 @@ export const CSS_ADDITIONS = `
 .plan-option-desc{font-size:11px;color:var(--muted);margin-top:3px}
 .log-input-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}
 .log-input-row:last-child{border-bottom:none}
-@media(max-width:600px){.meas-grid{grid-template-columns:1fr 1fr}}
+
+/* ── POSE GRID (client upload) ── */
+.pose-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
+@media(max-width:700px){
+  .pose-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .meas-grid{grid-template-columns:1fr 1fr}
+  .profile-page-outer{height:calc(100dvh - 52px - env(safe-area-inset-bottom))}
+}
+
+/* ── PROFILE PHOTO UPLOAD ── */
+.profile-photo-wrap{position:relative;display:inline-flex;align-items:center;justify-content:center}
+.profile-photo-upload-btn{position:absolute;bottom:-4px;right:-4px;width:22px;height:22px;border-radius:50%;background:var(--green);border:2px solid var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:11px;transition:transform .2s;z-index:2}
+.profile-photo-upload-btn:hover{transform:scale(1.15)}
 `;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ENHANCED FOOD LOG — client logs per-meal calories, charts update from logs only
+// ENHANCED FOOD LOG
 // ═══════════════════════════════════════════════════════════════════════════════
 export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPlan }) {
   const today = new Date().toLocaleDateString("en-IN");
@@ -122,37 +177,20 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
     const planProtein = meal.items.reduce((a, i) => a + (i.protein || 0), 0);
     const planCarbs   = meal.items.reduce((a, i) => a + (i.carbs || 0), 0);
     const planFats    = meal.items.reduce((a, i) => a + (i.fats || 0), 0);
-    setInputVals({
-      cal:     existing.cal     ?? planCal,
-      protein: existing.protein ?? planProtein,
-      carbs:   existing.carbs   ?? planCarbs,
-      fats:    existing.fats    ?? planFats,
-    });
+    setInputVals({ cal: existing.cal ?? planCal, protein: existing.protein ?? planProtein, carbs: existing.carbs ?? planCarbs, fats: existing.fats ?? planFats });
     setActiveMeal(meal.name);
   };
 
   const saveMealLog = async () => {
     if (!activeMeal) return;
     setSaving(true);
-    const updated = {
-      ...mealLogs,
-      [activeMeal]: {
-        cal:      parseFloat(inputVals.cal)     || 0,
-        protein:  parseFloat(inputVals.protein) || 0,
-        carbs:    parseFloat(inputVals.carbs)   || 0,
-        fats:     parseFloat(inputVals.fats)    || 0,
-        loggedAt: new Date().toISOString(),
-      }
-    };
+    const updated = { ...mealLogs, [activeMeal]: { cal: parseFloat(inputVals.cal) || 0, protein: parseFloat(inputVals.protein) || 0, carbs: parseFloat(inputVals.carbs) || 0, fats: parseFloat(inputVals.fats) || 0, loggedAt: new Date().toISOString() } };
     setMealLogs(updated);
     const existingLogs = Array.isArray(d.foodLogs) ? d.foodLogs : [];
     const todayEntry   = existingLogs.find(l => l.date === today) || { date: today, items: [] };
-    await updateDoc(doc(db, "clients", uid), {
-      foodLogs: [...existingLogs.filter(l => l.date !== today), { ...todayEntry, mealData: updated }]
-    });
+    await updateDoc(doc(db, "clients", uid), { foodLogs: [...existingLogs.filter(l => l.date !== today), { ...todayEntry, mealData: updated }] });
     toast(`${activeMeal} logged!`, "success");
-    setActiveMeal(null);
-    setSaving(false);
+    setActiveMeal(null); setSaving(false);
   };
 
   const clearMealLog = async (mealName) => {
@@ -161,9 +199,7 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
     setMealLogs(updated);
     const existingLogs = Array.isArray(d.foodLogs) ? d.foodLogs : [];
     const todayEntry   = existingLogs.find(l => l.date === today) || { date: today, items: [] };
-    await updateDoc(doc(db, "clients", uid), {
-      foodLogs: [...existingLogs.filter(l => l.date !== today), { ...todayEntry, mealData: updated }]
-    });
+    await updateDoc(doc(db, "clients", uid), { foodLogs: [...existingLogs.filter(l => l.date !== today), { ...todayEntry, mealData: updated }] });
     toast("Log cleared", "success");
   };
 
@@ -207,32 +243,22 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
     { label: "Carbohydrates", logged: loggedCarbs,   goal: goalCarbs,   color: "var(--orange)" },
     { label: "Fat",           logged: loggedFats,    goal: goalFats,    color: "var(--red)"    },
   ];
-
   const logsCount = Object.keys(mealLogs).length;
 
   return (
     <div style={{ marginBottom: 16 }}>
-
-      {/* ── HOW TO LOG BANNER ── */}
       <div style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.25)", borderRadius: 12, padding: "12px 16px", marginBottom: 14, display: "flex", alignItems: "flex-start", gap: 12 }}>
         <div style={{ fontSize: 22, flexShrink: 0 }}>💡</div>
         <div>
           <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13, color: "var(--blue)", marginBottom: 4 }}>How to log your food</div>
-          <div style={{ fontSize: 12, color: "var(--muted2)", lineHeight: 1.6 }}>
-            Log your meals in <strong style={{ color: "var(--text)" }}>MyFitnessPal</strong> or <strong style={{ color: "var(--text)" }}>Cronometer</strong> for accurate Indian food data, then enter your meal totals below. Takes 30 seconds!
-          </div>
+          <div style={{ fontSize: 12, color: "var(--muted2)", lineHeight: 1.6 }}>Log your meals in <strong style={{ color: "var(--text)" }}>MyFitnessPal</strong> or <strong style={{ color: "var(--text)" }}>Cronometer</strong> for accurate Indian food data, then enter your meal totals below.</div>
           <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
             {[["MyFitnessPal", "https://www.myfitnesspal.com", "var(--blue)"], ["Cronometer", "https://cronometer.com", "var(--purple)"]].map(([name, url, color]) => (
-              <a key={name} href={url} target="_blank" rel="noreferrer"
-                style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: color + "18", color, border: "1px solid " + color + "44", textDecoration: "none" }}>
-                Open {name} →
-              </a>
+              <a key={name} href={url} target="_blank" rel="noreferrer" style={{ padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: color + "18", color, border: "1px solid " + color + "44", textDecoration: "none" }}>Open {name} →</a>
             ))}
           </div>
         </div>
       </div>
-
-      {/* ── TOP SUMMARY ── */}
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="card-title">Today's Food Log — {today}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
@@ -265,8 +291,6 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
           <span>{goalCal} kcal</span>
         </div>
       </div>
-
-      {/* ── PER MEAL LOGGING ── */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 10 }}>
           Log Your Meals <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>— enter totals from MFP or Cronometer</span>
@@ -279,10 +303,8 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
           const calDiff  = actualCal - planCal;
           const color    = MEAL_COLORS[mi % MEAL_COLORS.length];
           const isEditing = activeMeal === meal.name;
-
           return (
             <div key={mi} style={{ background: "var(--s1)", border: "1.5px solid " + (isLogged ? color + "55" : "var(--border)"), borderRadius: 12, marginBottom: 10, overflow: "hidden", transition: "border-color .2s" }}>
-              {/* Header */}
               <div style={{ padding: "12px 14px", background: isLogged ? color + "0a" : "var(--s2)", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
                 onClick={() => isEditing ? setActiveMeal(null) : openMeal(meal)}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -304,8 +326,6 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                   </div>
                 </div>
               </div>
-
-              {/* Plan items */}
               <div style={{ padding: "8px 14px 4px", borderTop: "1px solid var(--border)" }}>
                 {meal.items.map((item, ii) => (
                   <div key={ii} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "5px 0", borderBottom: ii < meal.items.length - 1 ? "1px solid var(--border)" : "none", opacity: isLogged ? 0.6 : 1 }}>
@@ -319,19 +339,12 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                   </div>
                 ))}
               </div>
-
-              {/* Input form */}
               {isEditing && (
                 <div style={{ padding: 14, borderTop: "1px solid var(--border)", background: color + "06" }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 10 }}>
-                    Enter what you actually ate for {meal.name}:
-                  </div>
-
-                  {/* MFP tip */}
+                  <div style={{ fontSize: 12, fontWeight: 700, color, marginBottom: 10 }}>Enter what you actually ate for {meal.name}:</div>
                   <div style={{ background: "rgba(59,130,246,.06)", border: "1px solid rgba(59,130,246,.2)", borderRadius: 9, padding: "8px 12px", marginBottom: 12, fontSize: 11, color: "var(--muted2)", lineHeight: 1.5 }}>
                     💡 Log this meal in <strong style={{ color: "var(--blue)" }}>MyFitnessPal</strong> or <strong style={{ color: "var(--purple)" }}>Cronometer</strong>, then copy the totals below.
                   </div>
-
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 12 }}>
                     {[["Calories", "cal", "var(--green)"], ["Protein g", "protein", "var(--purple)"], ["Carbs g", "carbs", "var(--orange)"], ["Fats g", "fats", "var(--red)"]].map(([l, k, co]) => (
                       <div key={k}>
@@ -342,20 +355,16 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                       </div>
                     ))}
                   </div>
-
-                  {/* Quick fill */}
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
                     <span style={{ fontSize: 11, color: "var(--muted)", alignSelf: "center" }}>Quick fill:</span>
-                    {[50, 75, 100, 125].map(pct => {
+                    {[50, 75, 100, 125].map(p => {
                       const pCal = meal.items.reduce((a, i) => a + (i.cal || 0), 0);
                       const pPro = meal.items.reduce((a, i) => a + (i.protein || 0), 0);
                       const pCrb = meal.items.reduce((a, i) => a + (i.carbs || 0), 0);
                       const pFat = meal.items.reduce((a, i) => a + (i.fats || 0), 0);
                       return (
-                        <button key={pct} onClick={() => setInputVals({ cal: Math.round(pCal * pct / 100), protein: Math.round(pPro * pct / 100), carbs: Math.round(pCrb * pct / 100), fats: Math.round(pFat * pct / 100) })}
-                          style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted2)", cursor: "pointer" }}>
-                          {pct}%
-                        </button>
+                        <button key={p} onClick={() => setInputVals({ cal: Math.round(pCal * p / 100), protein: Math.round(pPro * p / 100), carbs: Math.round(pCrb * p / 100), fats: Math.round(pFat * p / 100) })}
+                          style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, border: "1px solid var(--border)", background: "var(--s2)", color: "var(--muted2)", cursor: "pointer" }}>{p}%</button>
                       );
                     })}
                     <button onClick={() => {
@@ -364,11 +373,8 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                       const pCrb = meal.items.reduce((a, i) => a + (i.carbs || 0), 0);
                       const pFat = meal.items.reduce((a, i) => a + (i.fats || 0), 0);
                       setInputVals({ cal: pCal, protein: pPro, carbs: pCrb, fats: pFat });
-                    }} style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, border: "1.5px solid var(--green-b)", background: "var(--green-bg)", color: "var(--green)", cursor: "pointer" }}>
-                      ✓ Ate as planned
-                    </button>
+                    }} style={{ padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, border: "1.5px solid var(--green-b)", background: "var(--green-bg)", color: "var(--green)", cursor: "pointer" }}>✓ Ate as planned</button>
                   </div>
-
                   <div style={{ display: "flex", gap: 8 }}>
                     <button className="btn btn-p" style={{ flex: 1 }} onClick={saveMealLog} disabled={saving}>{saving ? "Saving..." : `Save ${meal.name}`}</button>
                     {isLogged && <button className="btn btn-d btn-sm" onClick={() => { setActiveMeal(null); clearMealLog(meal.name); }}>Clear</button>}
@@ -376,7 +382,6 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                   </div>
                 </div>
               )}
-
               {isLogged && !isEditing && (
                 <div style={{ height: 4, background: "var(--border)" }}>
                   <div style={{ height: "100%", width: Math.min((actualCal / (planCal || 1)) * 100, 130) + "%", background: calDiff > 50 ? "var(--red)" : calDiff < -50 ? "var(--orange)" : color, transition: "width .8s ease" }} />
@@ -386,18 +391,12 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
           );
         })}
       </div>
-
-      {/* ── CHARTS ── */}
       <div className="card" style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", borderBottom: "1px solid var(--border)", marginBottom: 16 }}>
           {[["calories", "Calories"], ["nutrients", "Nutrients"], ["macros", "Macros"]].map(([key, label]) => (
-            <button key={key} onClick={() => setMfpTab(key)}
-              style={{ flex: 1, padding: "10px 6px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, color: mfpTab === key ? "var(--blue)" : "var(--muted)", borderBottom: mfpTab === key ? "2px solid var(--blue)" : "2px solid transparent", fontFamily: "'DM Sans',sans-serif" }}>
-              {label}
-            </button>
+            <button key={key} onClick={() => setMfpTab(key)} style={{ flex: 1, padding: "10px 6px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, color: mfpTab === key ? "var(--blue)" : "var(--muted)", borderBottom: mfpTab === key ? "2px solid var(--blue)" : "2px solid transparent", fontFamily: "'DM Sans',sans-serif" }}>{label}</button>
           ))}
         </div>
-
         {logsCount === 0 ? (
           <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--muted)" }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>📊</div>
@@ -408,7 +407,6 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
           <>
             {mfpTab === "calories" && (
               <div>
-                <div style={{ textAlign: "center", fontSize: 12, color: "var(--muted)", marginBottom: 14, fontWeight: 600 }}>📅 Today — {today}</div>
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
                   <div style={{ position: "relative", width: 160, height: 160 }}>
                     <svg width="160" height="160" style={{ transform: "rotate(-90deg)" }}>
@@ -450,10 +448,8 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                 ))}
               </div>
             )}
-
             {mfpTab === "nutrients" && (
               <div>
-                <div style={{ textAlign: "center", fontSize: 12, color: "var(--muted)", marginBottom: 14, fontWeight: 600 }}>📅 Today — {today}</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 80px 80px 80px", gap: 8, padding: "0 0 8px", borderBottom: "1px solid var(--border)", marginBottom: 4 }}>
                   <div />
                   {["Logged", "Goal", "Left"].map(h => <div key={h} style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", textAlign: "right" }}>{h}</div>)}
@@ -477,10 +473,8 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
                 })}
               </div>
             )}
-
             {mfpTab === "macros" && (
               <div>
-                <div style={{ textAlign: "center", fontSize: 12, color: "var(--muted)", marginBottom: 14, fontWeight: 600 }}>📅 Today — {today}</div>
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: 20 }}>
                   <div style={{ position: "relative", width: 160, height: 160 }}>
                     <svg width="160" height="160" style={{ transform: "rotate(-90deg)" }}>
@@ -524,7 +518,7 @@ export function EnhancedFoodLogSection({ uid, d, toast, targetNutrition, mealPla
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CLIENT PROFILE PANEL
+// CLIENT PROFILE PANEL  (coach side-panel — now shows client photo)
 // ═══════════════════════════════════════════════════════════════════════════════
 export function ClientProfilePanel({ d, onClose }) {
   const n = d.nutrition || {};
@@ -534,8 +528,7 @@ export function ClientProfilePanel({ d, onClose }) {
     if (!d.wakeTime || !d.sleepTime) return null;
     const [wH, wM] = d.wakeTime.split(":").map(Number);
     const [sH, sM] = d.sleepTime.split(":").map(Number);
-    const wakeMin = wH * 60 + wM;
-    const sleepMin = sH * 60 + sM;
+    const wakeMin = wH * 60 + wM; const sleepMin = sH * 60 + sM;
     const total = wakeMin > sleepMin ? wakeMin - sleepMin : (1440 - sleepMin + wakeMin);
     const hrs = Math.floor(total / 60); const mins = total % 60;
     let color, msg, emoji;
@@ -557,16 +550,19 @@ export function ClientProfilePanel({ d, onClose }) {
     <div className="profile-panel-overlay">
       <div className="profile-panel-bg" onClick={onClose} />
       <div className="profile-panel">
-
-        {/* Header */}
         <div className="profile-panel-hdr">
           <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16 }}>Client Profile</div>
           <button className="xbtn" onClick={onClose}>✕</button>
         </div>
 
-        {/* Avatar + Basic Info */}
+        {/* Avatar + Basic Info — show client photo if uploaded */}
         <div style={{ padding: "22px 22px 16px", display: "flex", alignItems: "center", gap: 14, borderBottom: "1px solid var(--border)" }}>
-          <div className="profile-av-lg">{initials}</div>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", overflow: "hidden", border: "2px solid var(--green-b)", flexShrink: 0 }}>
+            {d.photoUrl
+              ? <img src={d.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              : <div className="profile-av-lg" style={{ width: "100%", height: "100%", borderRadius: "50%", margin: 0 }}>{initials}</div>
+            }
+          </div>
           <div>
             <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18 }}>{d.name}</div>
             <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{d.email}</div>
@@ -575,19 +571,17 @@ export function ClientProfilePanel({ d, onClose }) {
           </div>
         </div>
 
-        {/* Plan Details — filled by coach when adding client */}
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>Plan Details</div>
           <Row label="🎯 Primary Goal"  value={d.primaryGoal}                                    color="var(--orange)" />
           <Row label="📋 Plan"          value={d.planName || d.phase}                            color="var(--green)"  />
-          <Row label="⏱ Duration"       value={d.planDuration ? d.planDuration + " weeks" : null} color="var(--blue)"   />
+          <Row label="⏱ Duration"       value={d.planDuration ? d.planDuration + " weeks" : null} color="var(--blue)"  />
           <Row label="📅 Week"          value={"Week " + d.week + " of " + (d.planDuration || "—")} color="var(--purple)" />
           <Row label="⚖️ Weight"        value={d.weight   ? d.weight   + " kg" : null} />
           <Row label="📉 Body Fat"      value={d.bodyFat  ? d.bodyFat  + "%"   : null} />
           <Row label="📏 Waist"         value={d.waist    ? d.waist    + " cm" : null} />
         </div>
 
-        {/* Macro Targets — set by coach */}
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>🍽 Macro Targets</div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -599,14 +593,13 @@ export function ClientProfilePanel({ d, onClose }) {
           </div>
         </div>
 
-        {/* Daily Routine — filled by client in My Profile */}
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>⏰ Daily Routine <span style={{ fontSize: 9, color: "var(--muted)", fontWeight: 400, textTransform: "none" }}>(client filled)</span></div>
-          <Row label="🌅 Wake-up Time"       value={d.wakeTime}                                                       color="var(--yellow)" />
-          <Row label="🌙 Sleep Time"         value={d.sleepTime}                                                      color="var(--blue)"   />
-          <Row label="💪 Training Time"      value={d.preferredTrainingTime}                                          color="var(--purple)" />
-          <Row label="👟 Avg Steps"          value={d.avgSteps ? Number(d.avgSteps).toLocaleString() + " steps" : null} color="var(--green)"  />
-          <Row label="🚽 Bowel Tracking"     value={d.bowelReport === true ? "Enabled" : d.bowelReport === false ? "Disabled" : null} color={d.bowelReport ? "var(--green)" : "var(--muted)"} />
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>⏰ Daily Routine</div>
+          <Row label="🌅 Wake-up Time"      value={d.wakeTime}                color="var(--yellow)" />
+          <Row label="🌙 Sleep Time"        value={d.sleepTime}               color="var(--blue)"   />
+          <Row label="💪 Training Time"     value={d.preferredTrainingTime}   color="var(--purple)" />
+          <Row label="👟 Avg Steps"         value={d.avgSteps ? Number(d.avgSteps).toLocaleString() + " steps" : null} color="var(--green)" />
+          <Row label="🚽 Bowel Tracking"    value={d.bowelReport === true ? "Enabled" : d.bowelReport === false ? "Disabled" : null} color={d.bowelReport ? "var(--green)" : "var(--muted)"} />
           {sleepInfo && (
             <div style={{ marginTop: 10, padding: "10px 14px", background: sleepInfo.color + "14", border: "1px solid " + sleepInfo.color + "44", borderRadius: 10, fontSize: 12, fontWeight: 700, color: sleepInfo.color }}>
               {sleepInfo.emoji} {sleepInfo.hrs}h {sleepInfo.mins}m sleep — {sleepInfo.msg}
@@ -614,47 +607,36 @@ export function ClientProfilePanel({ d, onClose }) {
           )}
         </div>
 
-        {/* Body Measurements — filled by client in My Profile */}
         {d.measurements && Object.values(d.measurements).some(v => v) ? (
           <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 10 }}>📏 Body Measurements <span style={{ fontSize: 9, fontWeight: 400, textTransform: "none" }}>(client filled)</span></div>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 10 }}>📏 Body Measurements</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
               {[
-                { key: "waist",  label: "Waist",  color: "var(--purple)" },
-                { key: "neck",   label: "Neck",   color: "var(--blue)"   },
-                { key: "chest",  label: "Chest",  color: "var(--green)"  },
-                { key: "calves", label: "Calves", color: "var(--orange)" },
-                { key: "thighs", label: "Thighs", color: "var(--red)"    },
-                { key: "arms",   label: "Arms",   color: "var(--yellow)" },
+                { key: "waist", label: "Waist", color: "var(--purple)" }, { key: "neck", label: "Neck", color: "var(--blue)" },
+                { key: "chest", label: "Chest", color: "var(--green)" }, { key: "calves", label: "Calves", color: "var(--orange)" },
+                { key: "thighs", label: "Thighs", color: "var(--red)" }, { key: "arms", label: "Arms", color: "var(--yellow)" },
               ].map(f => d.measurements[f.key] ? (
                 <div key={f.key} style={{ background: "var(--s2)", borderRadius: 10, padding: "10px", border: "1px solid var(--border)", textAlign: "center" }}>
-                  <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18, color: f.color }}>
-                    {d.measurements[f.key]}<span style={{ fontSize: 10, fontWeight: 500 }}>cm</span>
-                  </div>
+                  <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18, color: f.color }}>{d.measurements[f.key]}<span style={{ fontSize: 10, fontWeight: 500 }}>cm</span></div>
                   <div style={{ fontSize: 10, color: "var(--muted)", textTransform: "capitalize", marginTop: 3 }}>{f.label}</div>
                 </div>
               ) : null)}
             </div>
           </div>
-        ) : (
-          <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 6 }}>📏 Body Measurements</div>
-            <div style={{ fontSize: 12, color: "var(--muted)", fontStyle: "italic" }}>Client hasn't filled measurements yet.</div>
-          </div>
-        )}
+        ) : null}
 
-        {/* Blood Report — uploaded by client */}
+        {/* Blood Report — view from coach side */}
         <div style={{ padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>🩸 Blood Report <span style={{ fontSize: 9, fontWeight: 400, textTransform: "none" }}>(client uploaded)</span></div>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>🩸 Blood Report</div>
           {d.bloodReport ? (
-            <div style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.3)", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.3)", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
               <div>
                 <div style={{ fontWeight: 700, color: "var(--blue)", fontSize: 13 }}>📄 {d.bloodReport.name}</div>
                 <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>Uploaded: {d.bloodReport.uploadedAt}</div>
               </div>
               <a href={d.bloodReport.url} target="_blank" rel="noreferrer"
-                style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(59,130,246,.15)", color: "var(--blue)", fontSize: 12, fontWeight: 700, textDecoration: "none", border: "1px solid rgba(59,130,246,.3)" }}>
-                View PDF
+                style={{ padding: "8px 18px", borderRadius: 9, background: "linear-gradient(135deg,#3b82f6,#1d4ed8)", color: "#fff", fontSize: 13, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6, boxShadow: "0 3px 10px rgba(59,130,246,.3)" }}>
+                📄 View PDF
               </a>
             </div>
           ) : (
@@ -662,16 +644,212 @@ export function ClientProfilePanel({ d, onClose }) {
           )}
         </div>
 
-        {/* Fallback if client hasn't filled anything yet */}
         {!d.wakeTime && !d.sleepTime && !d.avgSteps && !(d.measurements && Object.values(d.measurements).some(v => v)) && !d.bloodReport && (
           <div style={{ padding: "28px 22px", textAlign: "center", color: "var(--muted)" }}>
             <div style={{ fontSize: 30, marginBottom: 10 }}>📋</div>
             <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text)", marginBottom: 6 }}>Client profile not filled yet</div>
-            <div style={{ fontSize: 12 }}>Once the client fills their My Profile section, sleep time, measurements, and routine will appear here.</div>
+            <div style={{ fontSize: 12 }}>Once the client fills their My Profile section, details will appear here.</div>
           </div>
         )}
-
       </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COACH MEDIA VIEW — sorted by date, per-pose compare
+// ═══════════════════════════════════════════════════════════════════════════════
+export function CoachMediaView({ sel, onDeletePhoto }) {
+  const [activePose, setActivePose]           = useState(POSES[0].key);
+  const [comparePick, setComparePick]         = useState(null); // { dateKey, url, date }
+  const [compareTarget, setCompareTarget]     = useState(null); // second photo for compare modal
+  const [compareModalOpen, setCompareModalOpen] = useState(false);
+  const [viewPhoto, setViewPhoto]             = useState(null);
+
+  const photos = (sel.photos || []).filter(p => p.pose === activePose);
+
+  // Sort by timestamp descending (newest first), then group by date string
+  const byDate = {};
+  [...photos].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).forEach(p => {
+    const key = p.date || "Unknown Date";
+    if (!byDate[key]) byDate[key] = [];
+    byDate[key].push(p);
+  });
+
+  // All date groups for this pose, sorted newest first
+  const dateGroups = Object.entries(byDate);
+
+  const poseInfo = POSES.find(p => p.key === activePose);
+
+  const openCompare = (photo) => {
+    setComparePick({ dateKey: photo.date, url: photo.url, date: photo.date, photo });
+    setCompareTarget(null);
+    setCompareModalOpen(true);
+  };
+
+  // All photos of same pose for compare selection (excluding the one we clicked)
+  const otherPhotos = photos.filter(p => p.timestamp !== comparePick?.photo?.timestamp);
+
+  if ((sel.photos || []).length === 0) {
+    return (
+      <div className="card">
+        <div className="empty">
+          <span className="empty-icon">📷</span>
+          <div className="empty-title">No photos uploaded yet</div>
+          <div className="empty-desc">Client hasn't uploaded any progress photos.</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Full photo view */}
+      {viewPhoto && (
+        <div className="ov" onClick={() => setViewPhoto(null)}>
+          <div style={{ maxWidth: 480, width: "100%" }} onClick={e => e.stopPropagation()}>
+            <img src={viewPhoto.url} alt="" style={{ width: "100%", borderRadius: 16 }} />
+            <div style={{ textAlign: "center", marginTop: 10, color: "var(--muted2)", fontSize: 12 }}>
+              {viewPhoto.pose} — {viewPhoto.date}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Compare Modal */}
+      {compareModalOpen && comparePick && (
+        <div className="ov" onClick={() => setCompareModalOpen(false)}>
+          <div style={{ background: "var(--s1)", border: "1px solid var(--border2)", borderRadius: 18, width: "96%", maxWidth: 860, maxHeight: "92vh", overflow: "auto", padding: "20px 18px" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div>
+                <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18 }}>📊 Compare — {activePose}</div>
+                <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>Select another {activePose} photo to compare</div>
+              </div>
+              <button className="xbtn" onClick={() => setCompareModalOpen(false)}>✕</button>
+            </div>
+
+            {/* Side-by-side if both selected */}
+            {compareTarget ? (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
+                {[comparePick, compareTarget].map((item, idx) => (
+                  <div key={idx} style={{ borderRadius: 12, overflow: "hidden", border: "1px solid var(--border)" }}>
+                    <div style={{ padding: "8px 12px", background: idx === 0 ? "rgba(59,130,246,.12)" : "rgba(34,197,94,.12)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontWeight: 700, fontSize: 13, color: idx === 0 ? "var(--blue)" : "var(--green)" }}>
+                        {idx === 0 ? "Photo A" : "Photo B"}
+                      </span>
+                      <span style={{ fontSize: 11, color: "var(--muted)" }}>{item.date}</span>
+                    </div>
+                    <img src={item.url} alt="" style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover" }} />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: "14px", background: "rgba(59,130,246,.06)", border: "1px solid rgba(59,130,246,.25)", borderRadius: 10, marginBottom: 16, fontSize: 13, color: "var(--blue)", fontWeight: 600 }}>
+                ← Select a second {activePose} photo below to compare with the selected date
+              </div>
+            )}
+
+            {/* Photo A being compared */}
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13, color: "var(--muted2)", marginBottom: 10, textTransform: "uppercase", letterSpacing: ".06em" }}>
+              Photo A (selected)
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 18, borderBottom: "1px solid var(--border)", paddingBottom: 14 }}>
+              <div style={{ width: 80, borderRadius: 10, overflow: "hidden", border: "2px solid var(--blue)", flexShrink: 0 }}>
+                <img src={comparePick.url} alt="" style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover" }} />
+              </div>
+              <div style={{ alignSelf: "center" }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "var(--blue)" }}>{comparePick.date}</div>
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{activePose}</div>
+              </div>
+            </div>
+
+            {/* Choose Photo B */}
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13, color: "var(--muted2)", marginBottom: 10, textTransform: "uppercase", letterSpacing: ".06em" }}>
+              Choose Photo B to compare:
+            </div>
+            {otherPhotos.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "24px", color: "var(--muted)", fontSize: 13 }}>
+                Only 1 {activePose} photo available. Client needs to upload more.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10 }}>
+                {[...otherPhotos].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).map((p, i) => {
+                  const isSelected = compareTarget?.photo?.timestamp === p.timestamp;
+                  return (
+                    <div key={i} onClick={() => setCompareTarget({ url: p.url, date: p.date, photo: p })}
+                      style={{ borderRadius: 10, overflow: "hidden", border: "2px solid " + (isSelected ? "var(--green)" : "var(--border)"), cursor: "pointer", transition: "border-color .2s", position: "relative" }}>
+                      <img src={p.url} alt="" style={{ width: "100%", aspectRatio: "3/4", objectFit: "cover" }} />
+                      {isSelected && (
+                        <div style={{ position: "absolute", top: 5, right: 5, background: "var(--green)", color: "#fff", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>✓</div>
+                      )}
+                      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent,rgba(0,0,0,.75))", padding: "10px 6px 5px" }}>
+                        <div style={{ color: "#fff", fontSize: 9, fontWeight: 700 }}>{p.date}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Pose selector tabs */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, overflowX: "auto", flexWrap: "nowrap", paddingBottom: 4, WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}>
+        {POSES.map(pose => {
+          const count = (sel.photos || []).filter(p => p.pose === pose.key).length;
+          return (
+            <button key={pose.key} onClick={() => { setActivePose(pose.key); setComparePick(null); }}
+              style={{ padding: "7px 14px", borderRadius: 20, flexShrink: 0, border: "1.5px solid", borderColor: activePose === pose.key ? "var(--blue)" : "var(--border)", background: activePose === pose.key ? "rgba(59,130,246,.12)" : "var(--s2)", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 12, color: activePose === pose.key ? "var(--blue)" : "var(--muted)", transition: "all .18s", display: "flex", alignItems: "center", gap: 5 }}>
+              <span>{pose.emoji}</span>
+              <span>{pose.label}</span>
+              {count > 0 && <span style={{ padding: "1px 6px", borderRadius: 20, background: activePose === pose.key ? "rgba(59,130,246,.2)" : "var(--s3)", fontSize: 10, fontWeight: 700 }}>{count}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Date groups for active pose */}
+      {dateGroups.length === 0 ? (
+        <div className="card">
+          <div className="empty">
+            <span className="empty-icon">{poseInfo?.emoji}</span>
+            <div className="empty-title">No {activePose} photos yet</div>
+            <div className="empty-desc">Client hasn't uploaded any {activePose} pose photos.</div>
+          </div>
+        </div>
+      ) : (
+        dateGroups.map(([date, datephotos]) => (
+          <div key={date} className="card" style={{ marginBottom: 14 }}>
+            <div className="card-title">
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 16 }}>{poseInfo?.emoji}</span>
+                <span style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800 }}>{activePose}</span>
+                <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 400 }}>—</span>
+                <span style={{ fontSize: 13, color: "var(--muted2)", fontWeight: 600 }}>{date}</span>
+              </div>
+              <button className="btn btn-blue btn-sm" onClick={() => openCompare(datephotos[0])}>
+                🔍 Compare
+              </button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10 }}>
+              {datephotos.map((p, i) => (
+                <div key={i} style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "3/4", border: "1px solid var(--border)", cursor: "pointer" }}
+                  onClick={() => setViewPhoto(p)}>
+                  <img src={p.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent,rgba(0,0,0,.75))", padding: "14px 8px 7px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                    <span style={{ color: "#fff", fontSize: 9, fontWeight: 600 }}>{p.date}</span>
+                    {onDeletePhoto && (
+                      <button onClick={e => { e.stopPropagation(); onDeletePhoto(p); }}
+                        style={{ background: "rgba(248,113,113,.85)", color: "#fff", border: "none", borderRadius: 5, padding: "2px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>✕</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -730,49 +908,24 @@ export function AddClientFullscreenEnhanced({ coachUid, coachEmail, onClose, onS
 
   return (
     <div className="addclient-overlay">
-      <div className="addclient-topbar" style={{ 
-  display: "flex", alignItems: "center", 
-  justifyContent: "space-between", 
-  gap: 10, flexWrap: "wrap",
-  padding: "10px 14px",
-  flexShrink: 0
-}}>
-  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-    <button className="btn btn-s btn-sm" onClick={onClose} style={{ flexShrink: 0 }}>✕</button>
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15, whiteSpace: "nowrap" }}>Add New Client</div>
-      <div style={{ fontSize: 11, color: "var(--muted)" }}>Fill all sections then click Create</div>
-    </div>
-  </div>
-  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-    {err && <div style={{ fontSize: 12, color: "var(--red)", maxWidth: 200 }}>{err}</div>}
-    <button className="btn btn-p btn-sm" onClick={save} disabled={saving} style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
-      {saving ? "Creating..." : "✓ Create"}
-    </button>
-  </div>
-</div>
-      <div style={{ 
-  display: "flex", gap: 6, 
-  padding: "10px 12px", 
-  background: "rgba(8,13,26,.97)", 
-  borderBottom: "1px solid var(--border)", 
-  overflowX: "auto", flexWrap: "nowrap",
-  WebkitOverflowScrolling: "touch",
-  flexShrink: 0,
-  scrollbarWidth: "none"
-}}>
-  {sections.map((s, i) => (
-    <button key={i} onClick={() => setActiveSection(i)} style={{ 
-      padding: "6px 14px", borderRadius: 20, border: "1.5px solid", 
-      cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontWeight: 700, 
-      fontSize: 12, whiteSpace: "nowrap", flexShrink: 0,
-      borderColor: activeSection === i ? "var(--green)" : "var(--border)", 
-      background: activeSection === i ? "var(--green-bg)" : "var(--s2)", 
-      color: activeSection === i ? "var(--green)" : "var(--muted)", 
-      transition: "all .18s" 
-    }}>{s.icon} {s.label}</button>
-  ))}
-</div>
+      <div className="addclient-topbar" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", padding: "10px 14px", flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+          <button className="btn btn-s btn-sm" onClick={onClose} style={{ flexShrink: 0 }}>✕</button>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15, whiteSpace: "nowrap" }}>Add New Client</div>
+            <div style={{ fontSize: 11, color: "var(--muted)" }}>Fill all sections then click Create</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          {err && <div style={{ fontSize: 12, color: "var(--red)", maxWidth: 200 }}>{err}</div>}
+          <button className="btn btn-p btn-sm" onClick={save} disabled={saving} style={{ flexShrink: 0, whiteSpace: "nowrap" }}>{saving ? "Creating..." : "✓ Create"}</button>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 6, padding: "10px 12px", background: "rgba(8,13,26,.97)", borderBottom: "1px solid var(--border)", overflowX: "auto", flexWrap: "nowrap", WebkitOverflowScrolling: "touch", flexShrink: 0, scrollbarWidth: "none" }}>
+        {sections.map((s, i) => (
+          <button key={i} onClick={() => setActiveSection(i)} style={{ padding: "6px 14px", borderRadius: 20, border: "1.5px solid", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 12, whiteSpace: "nowrap", flexShrink: 0, borderColor: activeSection === i ? "var(--green)" : "var(--border)", background: activeSection === i ? "var(--green-bg)" : "var(--s2)", color: activeSection === i ? "var(--green)" : "var(--muted)", transition: "all .18s" }}>{s.icon} {s.label}</button>
+        ))}
+      </div>
       <div className="addclient-body">
         {activeSection === 0 && (<div className="ac-section"><div className="ac-section-title"><div className="ac-section-icon" style={{ background: "var(--green-bg)" }}>👤</div>Personal Info</div><div className="fg"><div className="fld"><div className="fl">Full Name *</div><input className="fi" placeholder="e.g. Rahul Kumar" value={nc.name} onChange={e => setNc(p => ({ ...p, name: e.target.value }))} /></div><div className="fld"><div className="fl">Phone Number</div><input className="fi" placeholder="+91 98765 43210" value={nc.phone} onChange={e => setNc(p => ({ ...p, phone: e.target.value }))} /></div></div></div>)}
         {activeSection === 1 && (<div className="ac-section"><div className="ac-section-title"><div className="ac-section-icon" style={{ background: "rgba(59,130,246,.12)" }}>🔐</div>Login Credentials</div><div className="alert alert-b">Share the app URL + these credentials with your client via WhatsApp after creating.</div><div className="fg"><div className="fld"><div className="fl">Email *</div><input className="fi" type="email" placeholder="rahul@gmail.com" value={nc.email} onChange={e => setNc(p => ({ ...p, email: e.target.value }))} /></div><div className="fld"><div className="fl">Password * (min 6 chars)</div><input className="fi" type="text" placeholder="e.g. rahul@123" value={nc.password} onChange={e => setNc(p => ({ ...p, password: e.target.value }))} /></div></div></div>)}
@@ -821,11 +974,12 @@ export function AddClientFullscreenEnhanced({ coachUid, coachEmail, onClose, onS
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// MY PROFILE SECTION
+// MY PROFILE SECTION — mobile-safe with independent scroll + profile photo upload
 // ═══════════════════════════════════════════════════════════════════════════════
 export function MyProfileSection({ uid, d, toast }) {
   const [saving, setSaving]             = useState(false);
   const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [form, setForm] = useState({
     wakeTime: d.wakeTime || "06:00", sleepTime: d.sleepTime || "22:30",
     bowelReport: d.bowelReport ?? false,
@@ -842,14 +996,29 @@ export function MyProfileSection({ uid, d, toast }) {
     const hrs = Math.floor(total / 60); const mins = total % 60;
     let color, msg, emoji;
     if (hrs < 6)       { color = "var(--red)";    msg = "Critical! Less than 6hrs — recovery is suffering."; emoji = "🚨"; }
-    else if (hrs < 7)  { color = "var(--orange)"; msg = "Below optimal. Aim for 7+ hours for better recovery."; emoji = "⚠️"; }
-    else if (hrs <= 8) { color = "var(--green)";  msg = "Great! 7–8hrs is ideal for performance and recovery."; emoji = "✅"; }
-    else               { color = "var(--blue)";   msg = "Good rest! Ensure sleep quality is deep."; emoji = "💙"; }
+    else if (hrs < 7)  { color = "var(--orange)"; msg = "Below optimal. Aim for 7+ hours."; emoji = "⚠️"; }
+    else if (hrs <= 8) { color = "var(--green)";  msg = "Great! 7–8hrs is ideal."; emoji = "✅"; }
+    else               { color = "var(--blue)";   msg = "Good rest!"; emoji = "💙"; }
     return { hrs, mins, color, msg, emoji };
   })();
 
   const weeksLeft = d.planDuration && d.week ? Math.max(0, parseInt(d.planDuration) - parseInt(d.week) + 1) : null;
 
+  // ── Upload profile photo (client only) ─────────────────────────────────────
+  const uploadProfilePhoto = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { toast("Please upload an image file", "error"); return; }
+    if (file.size > 10 * 1024 * 1024) { toast("Image too large. Max 10MB", "error"); return; }
+    setUploadingPhoto(true);
+    try {
+      const result = await cloudinaryUpload(file, () => {});
+      await updateDoc(doc(db, "clients", uid), { photoUrl: result.secure_url });
+      toast("Profile photo updated!", "success");
+    } catch (e) { toast("Upload failed: " + e.message, "error"); }
+    setUploadingPhoto(false);
+  };
+
+  // ── Upload blood report PDF ─────────────────────────────────────────────────
   const uploadBloodReport = async (file) => {
     if (!file) return;
     if (file.type !== "application/pdf") { toast("Please upload a PDF file only", "error"); return; }
@@ -857,13 +1026,20 @@ export function MyProfileSection({ uid, d, toast }) {
     setUploadingPdf(true);
     try {
       const formData = new FormData();
-      formData.append("file", file); formData.append("upload_preset", "coachkit_upload"); formData.append("folder", "blood_reports");
-      const res  = await fetch("https://api.cloudinary.com/v1_1/dputo3zsh/auto/upload", { method: "POST", body: formData });
+      formData.append("file", file); formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET); formData.append("folder", "blood_reports");
+      const res  = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, { method: "POST", body: formData });
       const data = await res.json();
       await updateDoc(doc(db, "clients", uid), { bloodReport: { url: data.secure_url, name: file.name, uploadedAt: new Date().toLocaleDateString("en-IN") } });
       toast("Blood report uploaded!", "success");
     } catch (e) { toast("Upload failed: " + e.message, "error"); }
     setUploadingPdf(false);
+  };
+
+  // ── Delete blood report ─────────────────────────────────────────────────────
+  const deleteBloodReport = async () => {
+    if (!window.confirm("Delete this blood report?")) return;
+    await updateDoc(doc(db, "clients", uid), { bloodReport: null });
+    toast("Blood report deleted.", "success");
   };
 
   const saveAll = async () => {
@@ -880,133 +1056,194 @@ export function MyProfileSection({ uid, d, toast }) {
   const TRAINING_TIMES = ["Early Morning (5–7 AM)", "Morning (7–9 AM)", "Mid Morning (9–11 AM)", "Afternoon (12–2 PM)", "Evening (4–6 PM)", "Late Evening (6–8 PM)", "Night (8–10 PM)"];
 
   return (
-    <div className="page">
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>My Profile</div>
-        <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>{d.phase} — Week {d.week}</div>
-      </div>
+    // OUTER wrapper: fixed height, no overflow — only inner scroll
+    <div className="profile-page-outer">
+      <div className="profile-page-scroll">
 
-      <div className="profile-page-section stagger-1">
-        <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 20 }}>
-          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "var(--green-bg)", border: "2px solid var(--green-b)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </div>
-          <div>
-            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 22 }}>{d.name}</div>
-            <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>{d.email}</div>
-            {d.phone && <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>📞 {d.phone}</div>}
-          </div>
+        {/* ── PAGE HEADER ── */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>My Profile</div>
+          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>{d.phase} — Week {d.week}</div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-          {[["🎯 Primary Goal", d.primaryGoal || "—", "var(--orange)"], ["📋 Plan", d.planName || d.phase || "—", "var(--green)"], ["⏱ Duration", d.planDuration ? d.planDuration + " weeks" : "—", "var(--blue)"], ["📅 Current Week", `Week ${d.week} of ${d.planDuration || "—"}`, "var(--purple)"]].map(([l, v, co]) => (
-            <div key={l} style={{ background: "var(--s2)", borderRadius: 10, padding: "10px 14px", border: "1px solid var(--border)" }}>
-              <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--muted)", marginBottom: 4 }}>{l}</div>
-              <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 14, color: co }}>{v}</div>
+
+        {/* ── SECTION 1: Identity + plan progress ── */}
+        <div className="profile-page-section stagger-1">
+          <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 20 }}>
+
+            {/* Profile photo with upload button */}
+            <div className="profile-photo-wrap">
+              <div style={{ width: 72, height: 72, borderRadius: "50%", overflow: "hidden", border: "2px solid var(--green-b)", flexShrink: 0 }}>
+                {d.photoUrl
+                  ? <img src={d.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : (
+                    <div style={{ width: "100%", height: "100%", background: "var(--green-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                      </svg>
+                    </div>
+                  )
+                }
+              </div>
+              {/* Upload button overlay */}
+              <label className="profile-photo-upload-btn" title={uploadingPhoto ? "Uploading..." : "Change photo"} style={{ opacity: uploadingPhoto ? 0.5 : 1 }}>
+                <input type="file" accept="image/*" style={{ display: "none" }} disabled={uploadingPhoto}
+                  onChange={e => { if (e.target.files[0]) uploadProfilePhoto(e.target.files[0]); e.target.value = ""; }} />
+                {uploadingPhoto ? "⏳" : "📷"}
+              </label>
             </div>
-          ))}
-        </div>
-        {d.planDuration && d.week && (
-          <div style={{ background: "var(--s2)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--border)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted2)" }}>Plan Progress</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>{weeksLeft} weeks remaining</span>
-            </div>
-            <div style={{ height: 8, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}>
-              <div style={{ height: "100%", borderRadius: 4, background: "linear-gradient(90deg,var(--green),#16a34a)", width: `${Math.min((parseInt(d.week) / parseInt(d.planDuration)) * 100, 100)}%`, transition: "width .8s ease" }} />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
-              <span>Week 1</span><span>Week {d.planDuration}</span>
+
+            <div>
+              <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 22 }}>{d.name}</div>
+              <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>{d.email}</div>
+              {d.phone && <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>📞 {d.phone}</div>}
+              <div style={{ fontSize: 11, color: "var(--muted2)", marginTop: 5 }}>Tap 📷 to update your profile photo</div>
             </div>
           </div>
-        )}
-      </div>
 
-      <div className="profile-page-section stagger-2">
-        <div className="profile-page-title"><span style={{ fontSize: 18 }}>⏰</span> Daily Routine</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <div className="fld">
-            <div className="fl" style={{ color: "var(--yellow)" }}>🌅 Wake-up Time</div>
-            <input type="time" value={form.wakeTime} onChange={e => setForm(p => ({ ...p, wakeTime: e.target.value }))} style={{ width: "100%", background: "var(--s2)", border: "1.5px solid var(--border)", borderRadius: 9, color: "var(--text)", fontFamily: "'DM Sans',sans-serif", fontSize: 14, padding: "10px 12px", outline: "none" }} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+            {[["🎯 Primary Goal", d.primaryGoal || "—", "var(--orange)"], ["📋 Plan", d.planName || d.phase || "—", "var(--green)"], ["⏱ Duration", d.planDuration ? d.planDuration + " weeks" : "—", "var(--blue)"], ["📅 Current Week", `Week ${d.week} of ${d.planDuration || "—"}`, "var(--purple)"]].map(([l, v, co]) => (
+              <div key={l} style={{ background: "var(--s2)", borderRadius: 10, padding: "10px 14px", border: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".07em", color: "var(--muted)", marginBottom: 4 }}>{l}</div>
+                <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 14, color: co }}>{v}</div>
+              </div>
+            ))}
           </div>
-          <div className="fld">
-            <div className="fl" style={{ color: "var(--blue)" }}>🌙 Sleep Time</div>
-            <input type="time" value={form.sleepTime} onChange={e => setForm(p => ({ ...p, sleepTime: e.target.value }))} style={{ width: "100%", background: "var(--s2)", border: "1.5px solid var(--border)", borderRadius: 9, color: "var(--text)", fontFamily: "'DM Sans',sans-serif", fontSize: 14, padding: "10px 12px", outline: "none" }} />
-          </div>
-        </div>
-        {sleepInfo && (
-          <div style={{ padding: "12px 16px", background: sleepInfo.color + "14", border: "1px solid " + sleepInfo.color + "44", borderRadius: 10, marginBottom: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, color: sleepInfo.color, marginBottom: 4 }}>{sleepInfo.emoji} {sleepInfo.hrs}h {sleepInfo.mins}m sleep</div>
-            <div style={{ fontSize: 12, color: sleepInfo.color, opacity: 0.85 }}>{sleepInfo.msg}</div>
-          </div>
-        )}
-        <div className="fld" style={{ marginBottom: 14 }}>
-          <div className="fl" style={{ color: "var(--purple)" }}>💪 Preferred Training Time</div>
-          <select className="fsel" value={form.preferredTrainingTime} onChange={e => setForm(p => ({ ...p, preferredTrainingTime: e.target.value }))}>
-            <option value="">Select preferred time...</option>
-            {TRAINING_TIMES.map(t => <option key={t}>{t}</option>)}
-          </select>
-        </div>
-        <div className="fld" style={{ marginBottom: 14 }}>
-          <div className="fl" style={{ color: "var(--green)" }}>👟 Average Steps Today</div>
-          <input className="fi" type="number" placeholder="e.g. 8000" value={form.avgSteps} onChange={e => setForm(p => ({ ...p, avgSteps: e.target.value }))} />
-          {form.avgSteps && <div style={{ fontSize: 11, marginTop: 5, color: parseInt(form.avgSteps) >= 10000 ? "var(--green)" : parseInt(form.avgSteps) >= 7000 ? "var(--yellow)" : "var(--orange)", fontWeight: 600 }}>{parseInt(form.avgSteps) >= 10000 ? "🏆 Excellent! 10k+ steps" : parseInt(form.avgSteps) >= 7000 ? "👍 Good — try reaching 10k" : "⚡ Increase daily movement"}</div>}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)" }}>
-          <input type="checkbox" id="bowelReport" checked={form.bowelReport} onChange={e => setForm(p => ({ ...p, bowelReport: e.target.checked }))} style={{ width: 18, height: 18, accentColor: "var(--green)", cursor: "pointer" }} />
-          <label htmlFor="bowelReport" style={{ fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Track daily bowel report <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 6 }}>(optional)</span></label>
-        </div>
-      </div>
-
-      <div className="profile-page-section stagger-3">
-        <div className="profile-page-title"><span style={{ fontSize: 18 }}>📏</span> Body Measurements <span style={{ fontSize: 11, fontWeight: 500, color: "var(--muted)" }}>cm</span></div>
-        <div className="meas-grid">
-          {[{ key: "waist", label: "Waist", color: "var(--purple)", icon: "🔵" }, { key: "neck", label: "Neck", color: "var(--blue)", icon: "🔷" }, { key: "chest", label: "Chest", color: "var(--green)", icon: "🟢" }, { key: "calves", label: "Calves", color: "var(--orange)", icon: "🟠" }, { key: "thighs", label: "Thighs", color: "var(--red)", icon: "🔴" }, { key: "arms", label: "Arms", color: "var(--yellow)", icon: "🟡" }].map(f => (
-            <div key={f.key}>
-              <div className="fl" style={{ color: f.color }}>{f.icon} {f.label} (cm)</div>
-              <input className="fi" type="number" step="0.1" placeholder="—" value={meas[f.key] || ""} onChange={e => setMeas(p => ({ ...p, [f.key]: e.target.value }))} style={{ color: f.color, fontWeight: 700, textAlign: "center" }} />
+          {d.planDuration && d.week && (
+            <div style={{ background: "var(--s2)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--muted2)" }}>Plan Progress</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>{weeksLeft} weeks remaining</span>
+              </div>
+              <div style={{ height: 8, borderRadius: 4, background: "var(--border)", overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 4, background: "linear-gradient(90deg,var(--green),#16a34a)", width: `${Math.min((parseInt(d.week) / parseInt(d.planDuration)) * 100, 100)}%`, transition: "width .8s ease" }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
+                <span>Week 1</span><span>Week {d.planDuration}</span>
+              </div>
             </div>
-          ))}
+          )}
         </div>
-        {Object.values(meas).some(v => v) && (
-          <div className="meas-grid" style={{ marginTop: 14 }}>
-            {MEASUREMENT_FIELDS.map(f => meas[f.key] ? (<div key={f.key} className="meas-card"><div className="meas-val" style={{ color: f.color }}>{meas[f.key]}<span style={{ fontSize: 12, fontWeight: 500 }}>cm</span></div><div className="meas-label">{f.label}</div></div>) : null)}
-          </div>
-        )}
-      </div>
 
-      <div className="profile-page-section stagger-4">
-        <div className="profile-page-title"><span style={{ fontSize: 18 }}>🩸</span> Blood Report <span style={{ fontSize: 11, fontWeight: 500, color: "var(--muted)" }}>— upload only if coach requests</span></div>
-        {d.bloodReport ? (
-          <div style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.3)", borderRadius: 10, padding: "12px 16px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div><div style={{ fontWeight: 700, color: "var(--blue)", fontSize: 13 }}>📄 {d.bloodReport.name}</div><div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>Uploaded: {d.bloodReport.uploadedAt}</div></div>
-            <a href={d.bloodReport.url} target="_blank" rel="noreferrer" style={{ padding: "6px 14px", borderRadius: 8, background: "rgba(59,130,246,.15)", color: "var(--blue)", fontSize: 12, fontWeight: 700, textDecoration: "none", border: "1px solid rgba(59,130,246,.3)" }}>View PDF</a>
+        {/* ── SECTION 2: Daily Routine ── */}
+        <div className="profile-page-section stagger-2">
+          <div className="profile-page-title"><span style={{ fontSize: 18 }}>⏰</span> Daily Routine</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+            <div className="fld">
+              <div className="fl" style={{ color: "var(--yellow)" }}>🌅 Wake-up Time</div>
+              <input type="time" value={form.wakeTime} onChange={e => setForm(p => ({ ...p, wakeTime: e.target.value }))} style={{ width: "100%", background: "var(--s2)", border: "1.5px solid var(--border)", borderRadius: 9, color: "var(--text)", fontFamily: "'DM Sans',sans-serif", fontSize: 14, padding: "10px 12px", outline: "none" }} />
+            </div>
+            <div className="fld">
+              <div className="fl" style={{ color: "var(--blue)" }}>🌙 Sleep Time</div>
+              <input type="time" value={form.sleepTime} onChange={e => setForm(p => ({ ...p, sleepTime: e.target.value }))} style={{ width: "100%", background: "var(--s2)", border: "1.5px solid var(--border)", borderRadius: 9, color: "var(--text)", fontFamily: "'DM Sans',sans-serif", fontSize: 14, padding: "10px 12px", outline: "none" }} />
+            </div>
           </div>
-        ) : (
-          <div style={{ background: "rgba(251,191,36,.06)", border: "1px solid rgba(251,191,36,.2)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "#fcd34d" }}>⚠️ Upload blood report only when requested by your coach.</div>
-        )}
-        <label style={{ display: "block", border: "2px dashed var(--border2)", borderRadius: 12, padding: "20px", textAlign: "center", cursor: uploadingPdf ? "default" : "pointer", background: "var(--s2)", transition: "all .2s" }}
-          onMouseEnter={e => { if (!uploadingPdf) e.currentTarget.style.borderColor = "var(--blue)"; }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border2)"; }}>
-          <input type="file" accept="application/pdf" style={{ display: "none" }} disabled={uploadingPdf} onChange={e => { if (e.target.files[0]) uploadBloodReport(e.target.files[0]); e.target.value = ""; }} />
-          <div style={{ fontSize: 28, marginBottom: 8 }}>📄</div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: uploadingPdf ? "var(--muted)" : "var(--blue)", marginBottom: 4 }}>{uploadingPdf ? "Uploading..." : d.bloodReport ? "Replace Blood Report PDF" : "Upload Blood Report PDF"}</div>
-          <div style={{ fontSize: 11, color: "var(--muted)" }}>PDF files only · Max 10MB</div>
-        </label>
-      </div>
-
-      <div className="profile-page-section stagger-5">
-        <div className="profile-page-title"><span style={{ fontSize: 18 }}>🍽</span> Current Macro Targets</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
-          {[["Calories", n.calories, "var(--green)", "kcal"], ["Protein", n.protein, "var(--purple)", "g"], ["Carbs", n.carbs, "var(--orange)", "g"], ["Fats", n.fats, "var(--red)", "g"], ["Fiber", n.fiber, "#34d399", "g"]].map(([l, v, co, u]) => (
-            <div key={l} className="meas-card"><div className="meas-val" style={{ color: co, fontSize: 18 }}>{v || "—"}<span style={{ fontSize: 10, fontWeight: 500 }}>{v ? u : ""}</span></div><div className="meas-label">{l}</div></div>
-          ))}
+          {sleepInfo && (
+            <div style={{ padding: "12px 16px", background: sleepInfo.color + "14", border: "1px solid " + sleepInfo.color + "44", borderRadius: 10, marginBottom: 14 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: sleepInfo.color, marginBottom: 4 }}>{sleepInfo.emoji} {sleepInfo.hrs}h {sleepInfo.mins}m sleep</div>
+              <div style={{ fontSize: 12, color: sleepInfo.color, opacity: 0.85 }}>{sleepInfo.msg}</div>
+            </div>
+          )}
+          <div className="fld" style={{ marginBottom: 14 }}>
+            <div className="fl" style={{ color: "var(--purple)" }}>💪 Preferred Training Time</div>
+            <select className="fsel" value={form.preferredTrainingTime} onChange={e => setForm(p => ({ ...p, preferredTrainingTime: e.target.value }))}>
+              <option value="">Select preferred time...</option>
+              {TRAINING_TIMES.map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+          <div className="fld" style={{ marginBottom: 14 }}>
+            <div className="fl" style={{ color: "var(--green)" }}>👟 Average Steps Today</div>
+            <input className="fi" type="number" placeholder="e.g. 8000" value={form.avgSteps} onChange={e => setForm(p => ({ ...p, avgSteps: e.target.value }))} />
+            {form.avgSteps && <div style={{ fontSize: 11, marginTop: 5, color: parseInt(form.avgSteps) >= 10000 ? "var(--green)" : parseInt(form.avgSteps) >= 7000 ? "var(--yellow)" : "var(--orange)", fontWeight: 600 }}>{parseInt(form.avgSteps) >= 10000 ? "🏆 Excellent!" : parseInt(form.avgSteps) >= 7000 ? "👍 Good — try reaching 10k" : "⚡ Increase daily movement"}</div>}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)" }}>
+            <input type="checkbox" id="bowelReport" checked={form.bowelReport} onChange={e => setForm(p => ({ ...p, bowelReport: e.target.checked }))} style={{ width: 18, height: 18, accentColor: "var(--green)", cursor: "pointer" }} />
+            <label htmlFor="bowelReport" style={{ fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Track daily bowel report <span style={{ fontSize: 11, color: "var(--muted)", marginLeft: 6 }}>(optional)</span></label>
+          </div>
         </div>
-        <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>Set by your coach. Updates automatically.</div>
-      </div>
 
-      <button className="btn btn-p" style={{ width: "100%", padding: "14px", fontSize: 15, borderRadius: 14, marginTop: 4, boxShadow: "0 6px 24px rgba(34,197,94,.3)" }} onClick={saveAll} disabled={saving}>
-        {saving ? "Saving..." : "💾 Save Profile"}
-      </button>
-    </div>
+        {/* ── SECTION 3: Body Measurements ── */}
+        <div className="profile-page-section stagger-3">
+          <div className="profile-page-title"><span style={{ fontSize: 18 }}>📏</span> Body Measurements <span style={{ fontSize: 11, fontWeight: 500, color: "var(--muted)" }}>cm</span></div>
+          <div className="meas-grid">
+            {[{ key: "waist", label: "Waist", color: "var(--purple)", icon: "🔵" }, { key: "neck", label: "Neck", color: "var(--blue)", icon: "🔷" }, { key: "chest", label: "Chest", color: "var(--green)", icon: "🟢" }, { key: "calves", label: "Calves", color: "var(--orange)", icon: "🟠" }, { key: "thighs", label: "Thighs", color: "var(--red)", icon: "🔴" }, { key: "arms", label: "Arms", color: "var(--yellow)", icon: "🟡" }].map(f => (
+              <div key={f.key}>
+                <div className="fl" style={{ color: f.color }}>{f.icon} {f.label} (cm)</div>
+                <input className="fi" type="number" step="0.1" placeholder="—" value={meas[f.key] || ""} onChange={e => setMeas(p => ({ ...p, [f.key]: e.target.value }))} style={{ color: f.color, fontWeight: 700, textAlign: "center" }} />
+              </div>
+            ))}
+          </div>
+          {Object.values(meas).some(v => v) && (
+            <div className="meas-grid" style={{ marginTop: 14 }}>
+              {MEASUREMENT_FIELDS.map(f => meas[f.key] ? (<div key={f.key} className="meas-card"><div className="meas-val" style={{ color: f.color }}>{meas[f.key]}<span style={{ fontSize: 12, fontWeight: 500 }}>cm</span></div><div className="meas-label">{f.label}</div></div>) : null)}
+            </div>
+          )}
+        </div>
+
+        {/* ── SECTION 4: Blood Report — proper PDF upload/view/delete ── */}
+        <div className="profile-page-section stagger-4">
+          <div className="profile-page-title"><span style={{ fontSize: 18 }}>🩸</span> Blood Report <span style={{ fontSize: 11, fontWeight: 500, color: "var(--muted)" }}>— upload only if coach requests</span></div>
+
+          {/* Warning note */}
+          <div style={{ background: "rgba(251,191,36,.06)", border: "1px solid rgba(251,191,36,.2)", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "#fcd34d" }}>
+            ⚠️ Upload blood report only when requested by your coach.
+          </div>
+
+          {/* Existing report */}
+          {d.bloodReport ? (
+            <div style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.3)", borderRadius: 12, padding: "14px 16px", marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                {/* PDF icon */}
+                <div style={{ width: 48, height: 48, borderRadius: 10, background: "rgba(59,130,246,.15)", border: "1px solid rgba(59,130,246,.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>📄</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: "var(--blue)", fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.bloodReport.name}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 3 }}>Uploaded: {d.bloodReport.uploadedAt}</div>
+                </div>
+              </div>
+              {/* Action buttons */}
+              <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                <a href={d.bloodReport.url} target="_blank" rel="noreferrer"
+                  style={{ flex: 1, padding: "10px 16px", borderRadius: 10, background: "linear-gradient(135deg,#3b82f6,#1d4ed8)", color: "#fff", fontSize: 13, fontWeight: 700, textDecoration: "none", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 3px 10px rgba(59,130,246,.3)" }}>
+                  📄 View PDF
+                </a>
+                <button onClick={deleteBloodReport}
+                  style={{ padding: "10px 16px", borderRadius: 10, background: "rgba(248,113,113,.12)", border: "1.5px solid rgba(248,113,113,.3)", color: "var(--red)", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  🗑 Delete
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Upload area */}
+          <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, border: "2px dashed " + (uploadingPdf ? "var(--green)" : "var(--border2)"), borderRadius: 12, padding: "24px 20px", textAlign: "center", cursor: uploadingPdf ? "default" : "pointer", background: uploadingPdf ? "rgba(34,197,94,.04)" : "var(--s2)", transition: "all .2s", minHeight: 120 }}
+            onMouseEnter={e => { if (!uploadingPdf) e.currentTarget.style.borderColor = "var(--blue)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = uploadingPdf ? "var(--green)" : "var(--border2)"; }}>
+            <input type="file" accept="application/pdf" style={{ display: "none" }} disabled={uploadingPdf}
+              onChange={e => { if (e.target.files[0]) uploadBloodReport(e.target.files[0]); e.target.value = ""; }} />
+            <div style={{ fontSize: 32 }}>{uploadingPdf ? "⏳" : "📤"}</div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: uploadingPdf ? "var(--green)" : "var(--blue)" }}>
+              {uploadingPdf ? "Uploading PDF..." : d.bloodReport ? "Replace Blood Report PDF" : "Upload Blood Report PDF"}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--muted)" }}>PDF files only · Max 10MB · Tap to browse</div>
+          </label>
+        </div>
+
+        {/* ── SECTION 5: Macro Targets (read only) ── */}
+        <div className="profile-page-section stagger-5">
+          <div className="profile-page-title"><span style={{ fontSize: 18 }}>🍽</span> Current Macro Targets</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
+            {[["Calories", n.calories, "var(--green)", "kcal"], ["Protein", n.protein, "var(--purple)", "g"], ["Carbs", n.carbs, "var(--orange)", "g"], ["Fats", n.fats, "var(--red)", "g"], ["Fiber", n.fiber, "#34d399", "g"]].map(([l, v, co, u]) => (
+              <div key={l} className="meas-card"><div className="meas-val" style={{ color: co, fontSize: 18 }}>{v || "—"}<span style={{ fontSize: 10, fontWeight: 500 }}>{v ? u : ""}</span></div><div className="meas-label">{l}</div></div>
+            ))}
+          </div>
+          <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>Set by your coach. Updates automatically.</div>
+        </div>
+
+        {/* ── SAVE BUTTON ── */}
+        <button className="btn btn-p" style={{ width: "100%", padding: "14px", fontSize: 15, borderRadius: 14, marginTop: 4, boxShadow: "0 6px 24px rgba(34,197,94,.3)" }} onClick={saveAll} disabled={saving}>
+          {saving ? "Saving..." : "💾 Save Profile"}
+        </button>
+
+      </div>{/* end scroll */}
+    </div>   /* end outer */
   );
 }
