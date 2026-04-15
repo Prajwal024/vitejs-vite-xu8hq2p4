@@ -393,8 +393,8 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .sources-mini-row{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
 .sources-mini-tag{padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid}
 
+/* ── REPLACE existing @media(max-width:700px) block with this ── */
 @media(max-width:700px){
-  /* ── GENERAL ── */
   .page{padding:16px 12px 80px}
   .g4{grid-template-columns:1fr 1fr}
   .g3{grid-template-columns:1fr 1fr}
@@ -402,109 +402,82 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
   .g2{grid-template-columns:1fr}
   .wk-grid{grid-template-columns:repeat(3,1fr)}
   .wk-grid-coach{grid-template-columns:repeat(4,1fr)}
-  .addclient-body{padding:20px 16px 48px}
+
+  /* MODAL: sheet from bottom */
   .modal{max-height:95vh;border-radius:16px 16px 0 0;position:fixed;bottom:0;left:0;right:0;margin:0;max-width:100%}
 
-  /* ── NAV — hide top tabs, show bottom bar ── */
+  /* NAV */
   .nav{height:calc(52px + env(safe-area-inset-top));padding:0 14px;padding-top:env(safe-area-inset-top)}
   .nav-tabs{display:none}
   .nav-brand{font-size:14px}
   .nav-right{gap:6px}
 
-  /* ── BOTTOM NAV ── */
+  /* BOTTOM NAV */
   .bottom-nav{
     display:flex;
-    position:fixed;
-    bottom:0;left:0;right:0;
+    position:fixed;bottom:0;left:0;right:0;
     background:rgba(8,13,26,.98);
-    backdrop-filter:blur(20px);
-    -webkit-backdrop-filter:blur(20px);
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
     border-top:1px solid var(--border);
     z-index:100;
     padding:6px 4px 0 4px;
-    padding-bottom:max(10px, env(safe-area-inset-bottom));
+    padding-bottom:max(10px,env(safe-area-inset-bottom));
     min-height:56px;
   }
-  .bottom-nav-btn{
-    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:2px;padding:6px 2px 4px;border:none;background:transparent;
-    cursor:pointer;color:var(--muted);transition:all .18s;min-width:0;
-    border-radius:10px;margin:1px;
-    -webkit-tap-highlight-color:transparent;
-    touch-action:manipulation;
-    min-height:44px;
-  }
-  .bottom-nav-btn.active{color:var(--green);background:var(--green-bg);}
+  .bottom-nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 2px 4px;border:none;background:transparent;cursor:pointer;color:var(--muted);transition:all .18s;min-width:0;border-radius:10px;margin:1px;-webkit-tap-highlight-color:transparent;touch-action:manipulation;min-height:44px}
+  .bottom-nav-btn.active{color:var(--green);background:var(--green-bg)}
   .bottom-nav-btn .bn-icon{font-size:22px;line-height:1;display:block}
   .bottom-nav-btn .bn-label{display:none}
-  /* ── CARDS / TYPOGRAPHY ── */
+
+  /* CARDS */
   .card{padding:14px 12px}
   .card-title{font-size:14px}
   .mc-val{font-size:22px}
-  .tab-bar{gap:2px}
-  .tab-item{font-size:11px;padding:6px 4px;min-width:50px}
-
-  /* ── WORKOUT GRID ── */
-  .wk-card{padding:10px 4px}
-  .ex-card{padding:14px}
-
-  /* ── CHAT ── */
-  .chat-wrap{height:calc(100vh - 220px)}
-
-  /* ── FORMS ── */
-  .fi{font-size:16px} /* prevents iOS zoom on input focus */
+  .tab-bar{gap:2px;overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}
+  .tab-item{font-size:11px;padding:6px 8px;min-width:max-content;flex-shrink:0}
+  .fi{font-size:16px}
   .fsel{font-size:16px}
-  .wke-topbar{padding:8px 10px;flex-wrap:wrap;height:auto}
-  .addclient-topbar{padding:8px 10px;flex-wrap:wrap;height:auto}
-  .wke-body{padding:16px 12px 48px}
-  .addclient-body{padding:16px 12px 48px}
+
+  /* FULLSCREEN OVERLAYS — KEY FIX */
+  .wke-overlay,.addclient-overlay,.wk-fullscreen{
+    position:fixed;inset:0;
+    padding-top:env(safe-area-inset-top);
+    padding-bottom:env(safe-area-inset-bottom);
+    overflow:hidden;
+    display:flex;flex-direction:column;
+  }
+  .wke-topbar,.addclient-topbar,.wk-fs-nav{
+    flex-shrink:0;
+    padding:8px 12px;
+    height:auto;min-height:52px;
+    flex-wrap:wrap;
+    gap:6px;
+    box-sizing:border-box;
+    width:100%;
+    overflow:hidden;
+  }
+  .wke-body,.addclient-body,.wk-fs-body{
+    flex:1;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding:14px 12px 48px;
+    width:100%;
+    box-sizing:border-box;
+  }
+
+  /* WORKOUT DAY PILLS — fix overflow */
+  .wk-day-btn{padding:6px 10px;font-size:11px}
+
+  /* ADDCLIENT SECTION TABS */
+  .addclient-overlay > div[style*="display:flex;gap:6px"]{
+    overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:2px
+  }
+
   .ex-editor-card{padding:14px 12px}
   .wk-fs-nav{padding:0 10px;min-height:52px}
-  .wk-fs-body{padding:16px 10px 48px}
-}
-
-/* landscape mobile — use top nav, hide bottom */
-@media(max-width:700px) and (orientation:landscape){
-  .nav-tabs{display:flex}
-  .bottom-nav{display:none}
-  .page{padding:16px 12px 24px}
-  .g4{grid-template-columns:repeat(4,1fr)}
-}
-
-/* desktop — show bottom nav too */
-@media(min-width:701px){
-  .bottom-nav{
-    display:flex;
-    position:fixed;
-    bottom:0;
-    left:50%;
-    transform:translateX(-50%);
-    width:100%;
-    max-width:960px;
-    background:rgba(8,13,26,.98);
-    backdrop-filter:blur(20px);
-    -webkit-backdrop-filter:blur(20px);
-    border-top:1px solid var(--border);
-    border-left:1px solid var(--border);
-    border-right:1px solid var(--border);
-    z-index:100;
-    padding:6px 6px 8px;
-    border-radius:16px 16px 0 0;
-    min-height:58px;
-  }
-  .bottom-nav-btn{
-    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    gap:2px;padding:6px 4px;border:none;background:transparent;
-    cursor:pointer;color:var(--muted);transition:all .18s;min-width:0;
-    border-radius:10px;margin:1px;
-    -webkit-tap-highlight-color:transparent;
-    touch-action:manipulation;
-    min-height:44px;
-  }
-  .bottom-nav-btn.active{color:var(--green);background:var(--green-bg);}
-  .bottom-nav-btn .bn-icon{font-size:19px;line-height:1;display:block}
-  .bottom-nav-btn .bn-label{display:none}
-  .page{padding-bottom:82px}
+  .wk-card{padding:10px 4px}
+  .ex-card{padding:14px}
+  .chat-wrap{height:calc(100vh - 220px)}
 }
 ` + CSS_ADDITIONS;
 
@@ -982,28 +955,35 @@ function WorkoutFullscreen({ workout, phase, week, warmup, cooldown, onClose }) 
 
       <div className="wk-fs-body">
         {/* Day selector pills */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
-          {workout.map((d2, i) => {
-            const dc2 = DAY_COLORS[i % DAY_COLORS.length];
-            const isActive = selDay === i;
-            return (
-              <button key={i} onClick={() => setSelDay(i)}
-                style={{
-                  padding: "7px 14px", borderRadius: 20,
-                  border: "1.5px solid " + (isActive ? dc2.accent : "var(--border)"),
-                  background: isActive ? dc2.bg : "var(--s2)",
-                  cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontWeight: 700,
-                  fontSize: 12, transition: "all .2s",
-                  color: isActive ? dc2.accent : "var(--muted)",
-                  opacity: d2.type === "Rest" ? 0.6 : 1
-                }}>
-                <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".07em" }}>{d2.day.slice(0, 3)}</div>
-                <div>{d2.type}</div>
-                {d2.type !== "Rest" && <div style={{ fontSize: 9, color: isActive ? dc2.accent : "var(--muted)" }}>{d2.exercises.length}ex</div>}
-              </button>
-            );
-          })}
-        </div>
+        {/* Day selector pills — scrollable, never wraps off screen */}
+<div style={{ 
+  display: "flex", gap: 6, 
+  overflowX: "auto", flexWrap: "nowrap",
+  marginBottom: 20, paddingBottom: 4,
+  WebkitOverflowScrolling: "touch",
+  scrollbarWidth: "none"
+}}>
+  {workout.map((d2, i) => {
+    const dc2 = DAY_COLORS[i % DAY_COLORS.length];
+    const isActive = selDay === i;
+    return (
+      <button key={i} onClick={() => setSelDay(i)}
+        style={{
+          padding: "7px 14px", borderRadius: 20, flexShrink: 0,
+          border: "1.5px solid " + (isActive ? dc2.accent : "var(--border)"),
+          background: isActive ? dc2.bg : "var(--s2)",
+          cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontWeight: 700,
+          fontSize: 12, transition: "all .2s",
+          color: isActive ? dc2.accent : "var(--muted)",
+          opacity: d2.type === "Rest" ? 0.6 : 1
+        }}>
+        <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".07em" }}>{d2.day.slice(0, 3)}</div>
+        <div>{d2.type}</div>
+        {d2.type !== "Rest" && <div style={{ fontSize: 9, color: isActive ? dc2.accent : "var(--muted)" }}>{d2.exercises.length}ex</div>}
+      </button>
+    );
+  })}
+</div>
 
         {/* Day header */}
         <div style={{
@@ -1289,11 +1269,13 @@ const triggerAutoSaveCooldown = (val) => {
             <div style={{ fontSize: 11, color: "var(--muted)" }}>Click any day to edit exercises</div>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: "60vw" }}>
+        <div style={{ 
+  display: "flex", alignItems: "center", gap: 6, 
+  flexWrap: "wrap", justifyContent: "flex-end",
+  flexShrink: 0
+}}>
   <span className={`autosave ${autoSaved ? "show" : ""}`}>✓ Saved</span>
-  <button className="btn btn-s btn-sm" disabled={editingDay === 0} onClick={() => setEditingDay(d => d - 1)}>← Prev</button>
-  <button className="btn btn-s btn-sm" disabled={editingDay === days.length - 1} onClick={() => setEditingDay(d => d + 1)}>Next →</button>
-  <button className="btn btn-p btn-sm" onClick={() => setEditingDay(null)}>Done ✓</button>
+  <button className="btn btn-p btn-sm" onClick={onClose}>← Done</button>
 </div>
       </div>
       <div className="wke-body">
@@ -2442,11 +2424,20 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
 </div>
         </div>
 
-        <div className="tab-bar">
-          {[["overview","Overview"],["checkins","Check-ins"],["chat","Chat"],["photos","Media"],["comparison","Compare"],["nutrition","Macros"],["meals","Meals"],["workout","Workout"],["phase","Phase"],["sources","Sources"]].map(([k, l]) => (
-            <button key={k} className={innerTab === k ? "tab-item active" : "tab-item"} onClick={() => setInnerTab(k)}>{l}</button>
-          ))}
-        </div>
+        <div className="tab-bar" style={{ 
+  overflowX: "auto", flexWrap: "nowrap", 
+  scrollbarWidth: "none", paddingBottom: 4 
+}}>
+  {[["overview","Overview"],["checkins","Check-ins"],["chat","Chat"],["photos","Media"],
+    ["comparison","Compare"],["nutrition","Macros"],["meals","Meals"],
+    ["workout","Workout"],["phase","Phase"],["sources","Sources"]].map(([k, l]) => (
+    <button key={k} 
+      className={innerTab === k ? "tab-item active" : "tab-item"} 
+      style={{ whiteSpace: "nowrap", flexShrink: 0 }}
+      onClick={() => setInnerTab(k)}>{l}
+    </button>
+  ))}
+</div>
 
         {innerTab === "overview" && (
           <div>
