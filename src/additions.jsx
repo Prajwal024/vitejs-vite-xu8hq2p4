@@ -730,19 +730,49 @@ export function AddClientFullscreenEnhanced({ coachUid, coachEmail, onClose, onS
 
   return (
     <div className="addclient-overlay">
-      <div className="addclient-topbar">
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <button className="btn btn-s btn-sm" onClick={onClose}>✕ Cancel</button>
-          <div><div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18 }}>Add New Client</div><div style={{ fontSize: 11, color: "var(--muted)" }}>Fill all sections then click Create</div></div>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {err && <div style={{ fontSize: 12, color: "var(--red)", maxWidth: 300 }}>{err}</div>}
-          <button className="btn btn-p" onClick={save} disabled={saving} style={{ padding: "10px 28px", fontSize: 14 }}>{saving ? "Creating..." : "✓ Create Client"}</button>
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 6, padding: "12px 24px", background: "rgba(8,13,26,.97)", borderBottom: "1px solid var(--border)", overflowX: "auto" }}>
-        {sections.map((s, i) => (<button key={i} onClick={() => setActiveSection(i)} style={{ padding: "6px 14px", borderRadius: 20, border: "1.5px solid", cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 12, whiteSpace: "nowrap", borderColor: activeSection === i ? "var(--green)" : "var(--border)", background: activeSection === i ? "var(--green-bg)" : "var(--s2)", color: activeSection === i ? "var(--green)" : "var(--muted)", transition: "all .18s" }}>{s.icon} {s.label}</button>))}
-      </div>
+      <div className="addclient-topbar" style={{ 
+  display: "flex", alignItems: "center", 
+  justifyContent: "space-between", 
+  gap: 10, flexWrap: "wrap",
+  padding: "10px 14px",
+  flexShrink: 0
+}}>
+  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+    <button className="btn btn-s btn-sm" onClick={onClose} style={{ flexShrink: 0 }}>✕</button>
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15, whiteSpace: "nowrap" }}>Add New Client</div>
+      <div style={{ fontSize: 11, color: "var(--muted)" }}>Fill all sections then click Create</div>
+    </div>
+  </div>
+  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+    {err && <div style={{ fontSize: 12, color: "var(--red)", maxWidth: 200 }}>{err}</div>}
+    <button className="btn btn-p btn-sm" onClick={save} disabled={saving} style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+      {saving ? "Creating..." : "✓ Create"}
+    </button>
+  </div>
+</div>
+      <div style={{ 
+  display: "flex", gap: 6, 
+  padding: "10px 12px", 
+  background: "rgba(8,13,26,.97)", 
+  borderBottom: "1px solid var(--border)", 
+  overflowX: "auto", flexWrap: "nowrap",
+  WebkitOverflowScrolling: "touch",
+  flexShrink: 0,
+  scrollbarWidth: "none"
+}}>
+  {sections.map((s, i) => (
+    <button key={i} onClick={() => setActiveSection(i)} style={{ 
+      padding: "6px 14px", borderRadius: 20, border: "1.5px solid", 
+      cursor: "pointer", fontFamily: "'Outfit',sans-serif", fontWeight: 700, 
+      fontSize: 12, whiteSpace: "nowrap", flexShrink: 0,
+      borderColor: activeSection === i ? "var(--green)" : "var(--border)", 
+      background: activeSection === i ? "var(--green-bg)" : "var(--s2)", 
+      color: activeSection === i ? "var(--green)" : "var(--muted)", 
+      transition: "all .18s" 
+    }}>{s.icon} {s.label}</button>
+  ))}
+</div>
       <div className="addclient-body">
         {activeSection === 0 && (<div className="ac-section"><div className="ac-section-title"><div className="ac-section-icon" style={{ background: "var(--green-bg)" }}>👤</div>Personal Info</div><div className="fg"><div className="fld"><div className="fl">Full Name *</div><input className="fi" placeholder="e.g. Rahul Kumar" value={nc.name} onChange={e => setNc(p => ({ ...p, name: e.target.value }))} /></div><div className="fld"><div className="fl">Phone Number</div><input className="fi" placeholder="+91 98765 43210" value={nc.phone} onChange={e => setNc(p => ({ ...p, phone: e.target.value }))} /></div></div></div>)}
         {activeSection === 1 && (<div className="ac-section"><div className="ac-section-title"><div className="ac-section-icon" style={{ background: "rgba(59,130,246,.12)" }}>🔐</div>Login Credentials</div><div className="alert alert-b">Share the app URL + these credentials with your client via WhatsApp after creating.</div><div className="fg"><div className="fld"><div className="fl">Email *</div><input className="fi" type="email" placeholder="rahul@gmail.com" value={nc.email} onChange={e => setNc(p => ({ ...p, email: e.target.value }))} /></div><div className="fld"><div className="fl">Password * (min 6 chars)</div><input className="fi" type="text" placeholder="e.g. rahul@123" value={nc.password} onChange={e => setNc(p => ({ ...p, password: e.target.value }))} /></div></div></div>)}
@@ -858,47 +888,9 @@ export function MyProfileSection({ uid, d, toast }) {
 
       <div className="profile-page-section stagger-1">
         <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 20 }}>
-        <label style={{ cursor: "pointer", flexShrink: 0 }} title="Tap to update your photo">
-  <input 
-    type="file" 
-    accept="image/*" 
-    style={{ display: "none" }} 
-    onChange={async (e) => {
-      const file = e.target.files[0]; 
-      if (!file) return;
-      if (file.size > 5 * 1024 * 1024) { toast("Image too large. Max 5MB", "error"); return; }
-      const fd = new FormData(); 
-      fd.append("file", file); 
-      fd.append("upload_preset", "coachkit_upload"); 
-      fd.append("folder", "client_photos");
-      try {
-        const res = await fetch(`https://api.cloudinary.com/v1_1/dputo3zsh/image/upload`, { method: "POST", body: fd });
-        const data = await res.json();
-        await updateDoc(doc(db, "clients", uid), { photoUrl: data.secure_url });
-        toast("Profile photo updated! ✅", "success");
-      } catch { toast("Upload failed", "error"); }
-      e.target.value = "";
-    }} 
-  />
-  <div style={{ 
-    width: 72, height: 72, borderRadius: "50%", 
-    overflow: "hidden",
-    border: "2.5px solid var(--green-b)", 
-    position: "relative",
-    transition: "transform .2s"
-  }}>
-    {d.photoUrl 
-      ? <img src={d.photoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-      : <div style={{ width: "100%", height: "100%", background: "var(--green-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 26, color: "var(--green)" }}>{d.avatar}</div>
-    }
-    <div style={{ 
-      position: "absolute", bottom: 0, left: 0, right: 0, 
-      background: "rgba(0,0,0,.6)", 
-      padding: "5px 0", textAlign: "center", 
-      fontSize: 10, color: "#fff", fontWeight: 700 
-    }}>📷</div>
-  </div>
-</label>
+          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "var(--green-bg)", border: "2px solid var(--green-b)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
           <div>
             <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 22 }}>{d.name}</div>
             <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 3 }}>{d.email}</div>
@@ -1004,9 +996,9 @@ export function MyProfileSection({ uid, d, toast }) {
 
       <div className="profile-page-section stagger-5">
         <div className="profile-page-title"><span style={{ fontSize: 18 }}>🍽</span> Current Macro Targets</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8, overflowX: "auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
           {[["Calories", n.calories, "var(--green)", "kcal"], ["Protein", n.protein, "var(--purple)", "g"], ["Carbs", n.carbs, "var(--orange)", "g"], ["Fats", n.fats, "var(--red)", "g"], ["Fiber", n.fiber, "#34d399", "g"]].map(([l, v, co, u]) => (
-            <div key={l} className="meas-card"><div className="meas-val" style={{ color: co, fontSize: 15, wordBreak: "break-all" }}>{v || "—"}<span style={{ fontSize: 9, fontWeight: 500 }}>{v ? u : ""}</span></div><div className="meas-label">{l}</div></div>
+            <div key={l} className="meas-card"><div className="meas-val" style={{ color: co, fontSize: 18 }}>{v || "—"}<span style={{ fontSize: 10, fontWeight: 500 }}>{v ? u : ""}</span></div><div className="meas-label">{l}</div></div>
           ))}
         </div>
         <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>Set by your coach. Updates automatically.</div>
