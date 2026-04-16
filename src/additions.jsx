@@ -1248,12 +1248,14 @@ export function MyProfileSection({ uid, d, toast }) {
 
         {/* ── SECTION 5: Macro Targets (read only) ── */}
         <div className="profile-page-section stagger-5">
-          <div className="profile-page-title"><span style={{ fontSize: 18 }}>🍽</span> Current Macro Targets</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 8 }}>
-            {[["Calories", n.calories, "var(--green)", "kcal"], ["Protein", n.protein, "var(--purple)", "g"], ["Carbs", n.carbs, "var(--orange)", "g"], ["Fats", n.fats, "var(--red)", "g"], ["Fiber", n.fiber, "#34d399", "g"]].map(([l, v, co, u]) => (
-              <div key={l} className="meas-card"><div className="meas-val" style={{ color: co, fontSize: 18 }}>{v || "—"}<span style={{ fontSize: 10, fontWeight: 500 }}>{v ? u : ""}</span></div><div className="meas-label">{l}</div></div>
-            ))}
-          </div>
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 4 }}>
+  {[["Calories", n.calories, "var(--green)", "kcal"], ["Protein", n.protein, "var(--purple)", "g"], ["Carbs", n.carbs, "var(--orange)", "g"], ["Fats", n.fats, "var(--red)", "g"], ["Fiber", n.fiber, "#34d399", "g"]].map(([l, v, co, u]) => (
+    <div key={l} className="meas-card" style={{ flexShrink: 0, minWidth: 68 }}>
+      <div className="meas-val" style={{ color: co, fontSize: 16 }}>{v || "—"}<span style={{ fontSize: 10, fontWeight: 500 }}>{v ? u : ""}</span></div>
+      <div className="meas-label">{l}</div>
+    </div>
+  ))}
+</div>
           <div style={{ marginTop: 10, fontSize: 11, color: "var(--muted)" }}>Set by your coach. Updates automatically.</div>
         </div>
 
