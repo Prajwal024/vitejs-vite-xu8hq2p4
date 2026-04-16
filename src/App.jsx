@@ -1600,22 +1600,26 @@ function MealEditor({ plan, onClose, clientSources, autoSave }) {
                 <input className="fi" style={{ width: 110 }} value={meal.time} onChange={e => updateMeal(mi, "time", e.target.value)} placeholder="Time" />
                 <button className="btn btn-d btn-sm" onClick={() => removeMeal(mi)}>Remove</button>
               </div>
-              <div style={{ padding: "10px 14px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 70px 70px 70px 70px 80px auto", gap: 5, marginBottom: 6 }}>{["Food", "Amount", "P(g)", "C(g)", "F(g)", "Fib(g)", "Cal", ""].map((h, i) => <div key={i} className="fl">{h}</div>)}</div>
-                {meal.items.map((item, ii) => (
-                  <div key={ii} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 70px 70px 70px 70px 80px auto", gap: 5, marginBottom: 8, alignItems: "center" }}>
-                    <input className="fi" value={item.food} onChange={e => updateItem(mi, ii, "food", e.target.value)} placeholder="Food name" />
-                    <input className="fi" value={item.amount} onChange={e => updateItem(mi, ii, "amount", e.target.value)} placeholder="100g" />
-                    <input className="fi" type="number" value={item.protein || ""} onChange={e => updateItem(mi, ii, "protein", e.target.value)} placeholder="0" style={{ color: "var(--purple)", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
-                    <input className="fi" type="number" value={item.carbs || ""} onChange={e => updateItem(mi, ii, "carbs", e.target.value)} placeholder="0" style={{ color: "var(--orange)", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
-                    <input className="fi" type="number" value={item.fats || ""} onChange={e => updateItem(mi, ii, "fats", e.target.value)} placeholder="0" style={{ color: "var(--red)", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
-                    <input className="fi" type="number" value={item.fiber || ""} onChange={e => updateItem(mi, ii, "fiber", e.target.value)} placeholder="0" style={{ color: "#34d399", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
-                    <input className="fi" type="number" value={item.cal || ""} onChange={e => updateItem(mi, ii, "cal", e.target.value)} placeholder="0" style={{ color: "var(--green)", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
-                    <button className="btn btn-d btn-xs" onClick={() => removeItem(mi, ii)}>✕</button>
-                  </div>
-                ))}
-                <button className="btn btn-s btn-sm" onClick={() => addItem(mi)} style={{ marginTop: 4 }}>+ Add Food</button>
-              </div>
+              <div style={{ padding: "10px 14px", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+  <div style={{ minWidth: 680 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "180px 90px 70px 70px 70px 70px 80px 32px", gap: 5, marginBottom: 6 }}>
+      {["Food", "Amount", "P(g)", "C(g)", "F(g)", "Fib(g)", "Cal", ""].map((h, i) => <div key={i} className="fl">{h}</div>)}
+    </div>
+    {meal.items.map((item, ii) => (
+      <div key={ii} style={{ display: "grid", gridTemplateColumns: "180px 90px 70px 70px 70px 70px 80px 32px", gap: 5, marginBottom: 8, alignItems: "center" }}>
+        <input className="fi" value={item.food} onChange={e => updateItem(mi, ii, "food", e.target.value)} placeholder="Food name" />
+        <input className="fi" value={item.amount} onChange={e => updateItem(mi, ii, "amount", e.target.value)} placeholder="100g" />
+        <input className="fi" type="number" value={item.protein || ""} onChange={e => updateItem(mi, ii, "protein", e.target.value)} placeholder="0" style={{ color: "var(--purple)", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
+        <input className="fi" type="number" value={item.carbs || ""} onChange={e => updateItem(mi, ii, "carbs", e.target.value)} placeholder="0" style={{ color: "var(--orange)", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
+        <input className="fi" type="number" value={item.fats || ""} onChange={e => updateItem(mi, ii, "fats", e.target.value)} placeholder="0" style={{ color: "var(--red)", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
+        <input className="fi" type="number" value={item.fiber || ""} onChange={e => updateItem(mi, ii, "fiber", e.target.value)} placeholder="0" style={{ color: "#34d399", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
+        <input className="fi" type="number" value={item.cal || ""} onChange={e => updateItem(mi, ii, "cal", e.target.value)} placeholder="0" style={{ color: "var(--green)", fontSize: 16, fontWeight: 700, padding: "12px 8px", textAlign: "center" }} />
+        <button className="btn btn-d btn-xs" onClick={() => removeItem(mi, ii)}>✕</button>
+      </div>
+    ))}
+    <button className="btn btn-s btn-sm" onClick={() => addItem(mi)} style={{ marginTop: 4 }}>+ Add Food</button>
+  </div>
+</div>
               <MealTotals items={meal.items} />
             </div>
           ))}
@@ -2734,7 +2738,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
       {clients.length === 0
         ? <div className="card"><div className="empty"><span className="empty-icon">👥</span><div className="empty-title">No clients yet</div><button className="btn btn-p" onClick={() => setShowAdd(true)}>+ Add First Client</button></div></div>
         : <div className="card" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-  <table className="tbl" style={{ minWidth: 520 }}>
+  <table className="tbl" style={{ minWidth: 600, borderCollapse: "collapse" }}>
             <thead><tr><th>Client</th><th>Phase</th><th>Status</th><th>Weight</th><th>Check-ins</th><th>Actions</th></tr></thead>
             <tbody>
               {clients.map(c => {
@@ -2776,11 +2780,17 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
   )}
 </div><div><div style={{ fontWeight: 600 }}>{c.name}</div><div style={{ fontSize: 11, color: "var(--muted)" }}>{c.email}</div></div></div></td>
                     <td><span className="bdg bdg-g">{c.phase}</span></td>
-                    <td>{status === "active" ? <span className="access-badge-active">✓ Active</span> : status === "paused" ? <span className="access-badge-paused">⏸ Paused</span> : <span className="access-badge-terminated">🚫 Terminated</span>}</td>
+                    <td style={{ whiteSpace: "nowrap" }}>
+  {status === "active" 
+    ? <span className="access-badge-active" style={{ display: "inline-flex", whiteSpace: "nowrap" }}>✓ Active</span> 
+    : status === "paused" 
+    ? <span className="access-badge-paused" style={{ display: "inline-flex", whiteSpace: "nowrap" }}>⏸ Paused</span> 
+    : <span className="access-badge-terminated" style={{ display: "inline-flex", whiteSpace: "nowrap" }}>🚫 Terminated</span>}
+</td>
                     <td style={{ fontWeight: 600 }}>{c.weight ? c.weight + "kg" : "-"}</td>
                     <td><span className="bdg bdg-p">{(c.weeklyCheckins || []).length}</span></td>
-                    <td><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-                      <button className="btn btn-s btn-xs" onClick={() => { setSelId(c.id); setInnerTab("overview"); }}>View</button>
+                    <td><div style={{ display: "flex", gap: 4, flexWrap: "nowrap" }}>
+  <button className="btn btn-s btn-xs" onClick={() => { setSelId(c.id); setInnerTab("overview"); }}>View</button>
                       <button className="btn btn-s btn-xs" onClick={() => { setSelId(c.id); setInnerTab("workout"); }}>Workout</button>
                       {status === "active" ? <button className="btn btn-warn btn-xs" onClick={() => setClientAccess(c.id, "paused")}>⏸</button> : <button className="btn btn-p btn-xs" onClick={() => setClientAccess(c.id, "active")}>▶</button>}
                       {status !== "terminated" && <button className="btn btn-d btn-xs" onClick={() => setClientAccess(c.id, "terminated")}>🚫</button>}
