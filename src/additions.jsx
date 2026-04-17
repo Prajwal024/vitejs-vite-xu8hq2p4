@@ -1268,3 +1268,851 @@ export function MyProfileSection({ uid, d, toast }) {
     </div>   /* end outer */
   );
 }
+// ═══════════════════════════════════════════════════════════════════════════════
+// AI FEATURES — Add these exports to your additions.js file
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// STEP 1: Copy BOTH components below into your additions.js
+// STEP 2: Export them: export { AIMotivationSection, AIExerciseGuide }
+// STEP 3: In App.jsx, import them at the top where you import from "./additions"
+// STEP 4: Follow the 4 integration points marked with ── INTEGRATION POINT ──
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── DEPENDENCIES NEEDED ──────────────────────────────────────────────────────
+// These are already in your app — no new installs needed.
+// Uses: useState, useEffect, useRef, doc, getDoc, updateDoc, collection,
+//       addDoc, query, where, getDocs, serverTimestamp (all from your imports)
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FEATURE 1: AI DAILY MOTIVATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function AIMotivationSection({ client, isCoach = false, db, doc, updateDoc, collection, addDoc, getDocs, query, where, serverTimestamp }) {
+  const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [histLoading, setHistLoading] = useState(true);
+  const [generated, setGenerated] = useState(null);
+
+  // Load last 7 days of messages
+  useEffect(() => {
+    if (!client?.id) return;
+    const load = async () => {
+      try {
+        const q = query(
+          collection(db, "motivationMessages"),
+          where("clientId", "==", client.id)
+        );
+        const snap = await getDocs(q);
+        const msgs = snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => new Date(b.date) - new Date(a.date))
+          .slice(0, 7);
+        setHistory(msgs);
+  
+        // Auto-generate if no message exists for today
+        const todayStr = new Date().toLocaleDateString("en-IN");
+        const alreadyHasToday = msgs.some(m => m.date === todayStr);
+        if (!alreadyHasToday && !client?.dailyMotivationDate?.includes(todayStr)) {
+          await generateMessage();
+        }
+      } catch (e) {
+        console.error("Failed to load motivation history", e);
+      }
+      setHistLoading(false);
+    };
+    load();
+  }, [client?.id]); // Only on mount / client change
+
+  const getTodayWorkout = (workoutPlan) => {
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const today = days[new Date().getDay()];
+    const todayPlan = (workoutPlan || []).find(d => d.day === today);
+    if (!todayPlan || todayPlan.type === "Rest") return "Rest & Recovery Day";
+    console.log("API KEY LOADED:", !!import.meta.env.VITE_ANTHROPIC_API_KEY);
+    return `${todayPlan.type} Day (${todayPlan.exercises?.length || 0} exercises)`;
+  };
+
+  const buildPrompt = (c) => {
+    const startWeight = (c.weightHistory || [])[0]?.weight || c.weight;
+    const currentWeight = c.weight;
+    const weightChange = startWeight && currentWeight ? (startWeight - currentWeight).toFixed(1) : null;
+    const checkins = c.weeklyCheckins || [];
+    const streak = checkins.length;
+    const lastCheckin = checkins[checkins.length - 1];
+    const todayWorkout = getTodayWorkout(c.workoutPlan);
+    const goal = c.primaryGoal || c.phase || "Fitness";
+    const n = c.nutrition || {};
+
+    return `You are a motivational fitness coach. Write a SHORT, punchy daily motivation message for a fitness client.
+
+Client details:
+- Name: ${c.name?.split(" ")[0] || "there"}
+- Goal: ${goal}
+- Current Phase: ${c.phase || "Training"}
+- Week: ${c.week || 1}
+- Today's workout: ${todayWorkout}
+- Weekly check-ins completed: ${streak}
+- Weight change so far: ${weightChange ? `${weightChange > 0 ? "-" : "+"}${Math.abs(weightChange)}kg` : "tracking in progress"}
+- Last sleep quality: ${lastCheckin?.sleepQuality || "N/A"}/10
+- Last training adherence: ${lastCheckin?.trainingAdherence || "N/A"}/10
+- Calorie target: ${n.calories || "set by coach"}
+- Protein target: ${n.protein || "set by coach"}g
+
+Rules:
+1. Be PERSONAL — use their name and specific details
+2. Be SHORT — 2-3 sentences max
+3. Be ENERGETIC but genuine — not cheesy
+4. Reference TODAY's workout specifically
+5. If they've been consistent, acknowledge it
+6. End with a power phrase or emoji that fits
+7. Beginner-friendly tone, never intimidating
+
+Generate the motivation message now (just the message, no quotes, no label):`;
+  };
+
+  const generateMessage = async () => {
+    if (!client) return;
+
+    
+
+    setLoading(true);
+    setGenerated(null);
+
+    try {
+      const prompt = buildPrompt(client);
+      const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    
+      const response = await fetch(
+        "https://api.groq.com/openai/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: "llama-3.1-8b-instant",
+            max_tokens: 1024,
+            messages: [{ role: "user", content: prompt }]
+          })
+        }
+      );
+    
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.error?.message || `HTTP ${response.status}`);
+      }
+    
+      const rawText = data.choices?.[0]?.message?.content?.trim();
+      if (!rawText) throw new Error("No message generated");
+    
+      // ✅ rawText is used directly — no `msg` variable
+      const today = new Date().toLocaleDateString("en-IN");
+      const entry = {
+        clientId: client.id,
+        clientName: client.name,
+        message: rawText,        // ← was `msg`, now `rawText`
+        date: today,
+        workout: getTodayWorkout(client.workoutPlan),
+        week: client.week || 1,
+        timestamp: new Date().toISOString(),
+      };
+    
+      await addDoc(collection(db, "motivationMessages"), {
+        ...entry,
+        serverTs: serverTimestamp()
+      });
+    
+      await updateDoc(doc(db, "clients", client.id), {
+        dailyMotivation: rawText,   // ← was `msg`
+        dailyMotivationDate: today,
+      });
+    
+      setGenerated(entry);
+    
+    } catch (e) {
+      console.error("Motivation generation failed:", e);
+      setGenerated({ error: `❌ ${e.message || "Failed to generate."}` });
+    }
+    setLoading(false);
+  };
+
+  const todayStr = new Date().toLocaleDateString("en-IN");
+  const todayMsg = history.find(m => m.date === todayStr);
+
+  return (
+    <div>
+      {/* ── Today's message or generate button ── */}
+      <div style={{
+        background: "linear-gradient(135deg, rgba(34,197,94,.1), rgba(167,139,250,.08))",
+        border: "1px solid var(--green-b)",
+        borderRadius: 16, padding: 20, marginBottom: 16,
+        position: "relative", overflow: "hidden"
+      }}>
+        {/* Decorative blob */}
+        <div style={{
+          position: "absolute", top: -20, right: -20,
+          width: 120, height: 120, borderRadius: "50%",
+          background: "rgba(34,197,94,.06)", pointerEvents: "none"
+        }} />
+
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 14 }}>
+          <div>
+          <div style={{
+  fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15,
+  color: "var(--green)", marginBottom: 2
+}}>🔥 Keep Going, {client.name?.split(" ")[0]}!</div>
+            <div style={{ fontSize: 11, color: "var(--muted)" }}>
+              {isCoach ? `For ${client.name} · ` : ""}{todayStr}
+            </div>
+          </div>
+          
+        </div>
+
+        {/* Loading state */}
+        {loading && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 12,
+            padding: "16px", background: "var(--s2)", borderRadius: 12,
+            border: "1px solid var(--border)"
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: "50%",
+              border: "3px solid var(--border)", borderTopColor: "var(--green)",
+              animation: "sp .8s linear infinite", flexShrink: 0
+            }} />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text)" }}>
+                Crafting {client.name?.split(" ")[0]}'s motivation...
+              </div>
+              <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                AI is reading their progress data
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Generated / existing message */}
+        {!loading && (generated?.message || todayMsg?.message || client?.dailyMotivation) && (
+          <div style={{
+            background: "rgba(34,197,94,.06)", border: "1px solid rgba(34,197,94,.2)",
+            borderRadius: 12, padding: "14px 16px",
+            animation: generated ? "bounceIn .4s ease" : "none"
+          }}>
+            <div style={{
+              fontSize: 15, lineHeight: 1.65, color: "var(--text)", fontWeight: 500
+            }}>
+              {generated?.message || todayMsg?.message || client?.dailyMotivation}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 10, color: "var(--muted)", fontWeight: 600 }}>
+              {getTodayWorkout(client.workoutPlan)} · Week {client.week}
+            </div>
+          </div>
+        )}
+
+        {!loading && !generated?.message && !todayMsg?.message && !client?.dailyMotivation && (
+          <div style={{
+            textAlign: "center", padding: "20px 10px",
+            color: "var(--muted)", fontSize: 13
+          }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
+            No message yet today. Hit Generate!
+          </div>
+        )}
+
+        {generated?.error && (
+          <div style={{
+            background: "rgba(248,113,113,.08)", border: "1px solid rgba(248,113,113,.2)",
+            borderRadius: 10, padding: 12, fontSize: 13, color: "var(--red)"
+          }}>{generated.error}</div>
+        )}
+      </div>
+
+      {/* ── Message History (last 7 days) ── */}
+      {history.length > 0 && (
+        <div style={{
+          background: "var(--s1)", border: "1px solid var(--border)",
+          borderRadius: 14, overflow: "hidden"
+        }}>
+          <div style={{
+            padding: "12px 16px", borderBottom: "1px solid var(--border)",
+            fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13,
+            display: "flex", alignItems: "center", justifyContent: "space-between"
+          }}>
+            📜 Last 7 Days
+            <span style={{
+              fontSize: 10, fontWeight: 600, color: "var(--muted)",
+              background: "var(--s2)", padding: "2px 8px", borderRadius: 20,
+              border: "1px solid var(--border)"
+            }}>{history.length} messages</span>
+          </div>
+          {histLoading ? (
+            <div style={{ padding: 20, textAlign: "center", color: "var(--muted)", fontSize: 12 }}>Loading history...</div>
+          ) : (
+            history.map((msg, i) => (
+              <div key={msg.id || i} style={{
+                padding: "12px 16px",
+                borderBottom: i < history.length - 1 ? "1px solid var(--border)" : "none",
+                background: i === 0 && msg.date === todayStr ? "rgba(34,197,94,.03)" : "transparent"
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700,
+                    color: msg.date === todayStr ? "var(--green)" : "var(--muted)",
+                    textTransform: "uppercase", letterSpacing: ".05em"
+                  }}>
+                    {msg.date === todayStr ? "Today" : msg.date}
+                  </span>
+                  <span style={{ fontSize: 10, color: "var(--muted)" }}>W{msg.week}</span>
+                </div>
+                <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.55 }}>{msg.message}</div>
+                <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4 }}>{msg.workout}</div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FEATURE 2: AI EXERCISE GUIDE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function AIExerciseGuide({ uid = null, db, doc, updateDoc, collection, addDoc }) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [chatInput, setChatInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [chatHistory, setChatHistory] = useState([]); // [{role, content}]
+  const [mode, setMode] = useState("search"); // "search" | "chat"
+  const inputRef = useRef(null);
+  const chatEndRef = useRef(null);
+  const resultRef = useRef(null);
+
+  const QUICK_SEARCHES = [
+    "Bench Press", "Deadlift", "Squats", "Pull-ups",
+    "Shoulder Press", "Bicep Curl", "Plank", "Romanian Deadlift"
+  ];
+
+  const QUICK_QUESTIONS = [
+    "I feel bench press in my shoulders, what's wrong?",
+    "How do I fix rounded back on deadlift?",
+    "What angle should I use for incline press?",
+    "Why do my knees cave on squats?",
+    "How to engage lats on pull-ups?",
+  ];
+
+  const buildExercisePrompt = (exercise) => `You are an expert fitness coach explaining exercises to beginners. Explain "${exercise}" in a friendly, motivating, beginner-first way.
+
+Format your response EXACTLY like this (use these exact headers):
+
+🎯 WHAT IT WORKS
+[List the primary and secondary muscles in 2-3 lines]
+
+📋 PROPER FORM (Step by Step)
+[Numbered steps, 5-7 steps, clear and simple language]
+
+⚠️ COMMON MISTAKES
+[3-4 bullet points of what people get wrong]
+
+💡 TIPS FOR EVERY LEVEL
+Beginner: [1-2 sentences]
+Intermediate: [1-2 sentences]
+Advanced: [1-2 sentences]
+
+📊 RECOMMENDED SETS & REPS
+Goal: Fat Loss → [sets x reps]
+Goal: Muscle Gain → [sets x reps]
+Goal: Strength → [sets x reps]
+
+🔥 MOTIVATION
+[1 sentence — why this exercise is worth doing. Make it powerful and personal]
+
+Keep it conversational, use simple words, never intimidate. Be encouraging throughout.`;
+
+  const buildChatSystemPrompt = () => `You are an expert personal trainer and exercise science coach. You answer questions about exercise form, muscle targeting, technique fixes, body mechanics, and training advice.
+
+Be conversational, precise, and helpful. When someone describes what they feel or where they feel it, give them specific anatomical and practical advice. Use simple language but be accurate. Keep answers focused — 3-6 sentences unless detail is needed. Use bullet points when listing things. Always end with a practical tip they can try immediately.`;
+
+  const parseResponse = (text) => {
+    const sections = {};
+    const parts = text.split(/\n(?=🎯|📋|⚠️|💡|📊|🔥)/);
+    parts.forEach(part => {
+      const firstLine = part.split("\n")[0].trim();
+      const content = part.split("\n").slice(1).join("\n").trim();
+      if (firstLine.includes("WHAT IT WORKS")) sections.muscles = content;
+      else if (firstLine.includes("PROPER FORM")) sections.form = content;
+      else if (firstLine.includes("COMMON MISTAKES")) sections.mistakes = content;
+      else if (firstLine.includes("TIPS FOR EVERY LEVEL")) sections.tips = content;
+      else if (firstLine.includes("RECOMMENDED SETS")) sections.sets = content;
+      else if (firstLine.includes("MOTIVATION")) sections.motivation = content;
+    });
+    return sections;
+  };
+
+  const callGroq = async (messages, maxTokens = 1024) => {
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: "llama-3.1-8b-instant", max_tokens: maxTokens, messages })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data?.error?.message || `HTTP ${response.status}`);
+    return data.choices?.[0]?.message?.content?.trim();
+  };
+
+  const searchExercise = async (exerciseName) => {
+    const name = (exerciseName || searchQuery).trim();
+    if (!name) return;
+    setLoading(true);
+    setResult(null);
+    try {
+      const rawText = await callGroq([{ role: "user", content: buildExercisePrompt(name) }]);
+      if (!rawText) throw new Error("No response");
+      const parsed = parseResponse(rawText);
+      const entry = {
+        exercise: name, raw: rawText, sections: parsed,
+        timestamp: new Date().toISOString(),
+        date: new Date().toLocaleDateString("en-IN")
+      };
+      setResult(entry);
+      setHistory(prev => [entry, ...prev.filter(h => h.exercise.toLowerCase() !== name.toLowerCase())].slice(0, 10));
+      if (uid && db && collection && addDoc) {
+        try { await addDoc(collection(db, "exerciseGuideHistory"), { uid, exercise: name, timestamp: new Date().toISOString() }); }
+        catch (e) { /* non-critical */ }
+      }
+      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    } catch (e) {
+      setResult({ error: `❌ ${e.message || "Couldn't load guide."}` });
+    }
+    setLoading(false);
+  };
+
+  const sendChat = async (overrideMsg) => {
+    const userMsg = (overrideMsg || chatInput).trim();
+    if (!userMsg || chatLoading) return;
+    setChatInput("");
+    const newHistory = [...chatHistory, { role: "user", content: userMsg }];
+    setChatHistory(newHistory);
+    setChatLoading(true);
+    try {
+      const messages = [
+        { role: "system", content: buildChatSystemPrompt() },
+        ...newHistory.slice(-10) // keep last 10 turns for context
+      ];
+      const reply = await callGroq(messages, 800);
+      setChatHistory(prev => [...prev, { role: "assistant", content: reply }]);
+    } catch (e) {
+      setChatHistory(prev => [...prev, { role: "assistant", content: `❌ Error: ${e.message}` }]);
+    }
+    setChatLoading(false);
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+  };
+
+  const handleSearchKey = (e) => { if (e.key === "Enter") searchExercise(); };
+  const handleChatKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } };
+
+  const SECTION_STYLES = {
+    muscles:    { color: "#4ade80", bg: "rgba(74,222,128,.08)",  border: "rgba(74,222,128,.2)",  icon: "🎯" },
+    form:       { color: "#38bdf8", bg: "rgba(56,189,248,.08)",  border: "rgba(56,189,248,.2)",  icon: "📋" },
+    mistakes:   { color: "#f87171", bg: "rgba(248,113,113,.08)", border: "rgba(248,113,113,.2)", icon: "⚠️" },
+    tips:       { color: "#a78bfa", bg: "rgba(167,139,250,.08)", border: "rgba(167,139,250,.2)", icon: "💡" },
+    sets:       { color: "#fb923c", bg: "rgba(251,146,60,.08)",  border: "rgba(251,146,60,.2)",  icon: "📊" },
+    motivation: { color: "#fbbf24", bg: "rgba(251,191,36,.08)",  border: "rgba(251,191,36,.3)",  icon: "🔥" },
+  };
+  const LABELS = {
+    muscles: "What It Works", form: "Proper Form", mistakes: "Common Mistakes",
+    tips: "Tips For Every Level", sets: "Sets & Reps Guide", motivation: "Why This Exercise",
+  };
+
+  return (
+    <div style={{ maxWidth: 720, margin: "0 auto" }}>
+
+      {/* ── Header + Mode Toggle ── */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{
+          background: "linear-gradient(135deg, rgba(59,130,246,.1), rgba(167,139,250,.06))",
+          border: "1px solid rgba(59,130,246,.25)", borderRadius: 16, padding: 20, marginBottom: 16
+        }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 20, marginBottom: 2, color: "var(--text)" }}>
+                🏋️ Exercise Guide
+              </div>
+              <div style={{ fontSize: 10, color: "var(--muted)", letterSpacing: ".04em" }}>
+                powered by AI
+              </div>
+            </div>
+            {/* Mode toggle */}
+            <div style={{ display: "flex", background: "var(--s2)", borderRadius: 10, border: "1px solid var(--border)", overflow: "hidden" }}>
+              {[["search", "🔍 Guide"], ["chat", "💬 Ask"]].map(([m, label]) => (
+                <button key={m} onClick={() => setMode(m)} style={{
+                  padding: "7px 14px", border: "none", cursor: "pointer",
+                  background: mode === m ? "rgba(59,130,246,.2)" : "transparent",
+                  color: mode === m ? "var(--blue)" : "var(--muted)",
+                  fontWeight: 700, fontSize: 12, fontFamily: "'DM Sans',sans-serif",
+                  borderRight: m === "search" ? "1px solid var(--border)" : "none",
+                  transition: "all .15s"
+                }}>{label}</button>
+              ))}
+            </div>
+          </div>
+
+          {mode === "search" ? (
+            <>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 12 }}>
+                Search any exercise — get muscles, form, common mistakes & level tips
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input ref={inputRef} className="fi"
+                  style={{ flex: 1, fontSize: 15, fontWeight: 600, borderColor: "rgba(59,130,246,.3)", background: "var(--s2)" }}
+                  placeholder="e.g. Bench Press, Deadlift, Plank..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onKeyDown={handleSearchKey}
+                />
+                <button onClick={() => searchExercise()} disabled={loading || !searchQuery.trim()} style={{
+                  padding: "10px 20px", borderRadius: 10, border: "none",
+                  background: (loading || !searchQuery.trim()) ? "var(--s3)" : "linear-gradient(135deg,#3b82f6,#6366f1)",
+                  color: (loading || !searchQuery.trim()) ? "var(--muted)" : "#fff",
+                  cursor: (loading || !searchQuery.trim()) ? "not-allowed" : "pointer",
+                  fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14,
+                  boxShadow: (loading || !searchQuery.trim()) ? "none" : "0 4px 16px rgba(59,130,246,.3)", flexShrink: 0
+                }}>{loading ? "..." : "Search"}</button>
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>
+              Ask anything about exercise form, muscle targeting, technique fixes, or training questions
+            </div>
+          )}
+        </div>
+
+        {/* Quick pills */}
+        {mode === "search" && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", alignSelf: "center" }}>Quick:</span>
+            {QUICK_SEARCHES.map(ex => (
+              <button key={ex} onClick={() => { setSearchQuery(ex); searchExercise(ex); }} style={{
+                padding: "4px 12px", borderRadius: 20, background: "var(--s2)",
+                border: "1px solid var(--border)", color: "var(--muted2)", fontSize: 11,
+                fontWeight: 600, cursor: "pointer", transition: "all .15s"
+              }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.color = "var(--blue)"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted2)"; }}
+              >{ex}</button>
+            ))}
+          </div>
+        )}
+
+        {mode === "chat" && chatHistory.length === 0 && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 8 }}>Try asking:</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {QUICK_QUESTIONS.map(q => (
+                <button key={q} onClick={() => { setChatInput(q); sendChat(q); }} style={{
+                  padding: "6px 12px", borderRadius: 20, background: "var(--s2)",
+                  border: "1px solid var(--border)", color: "var(--muted2)", fontSize: 11,
+                  fontWeight: 500, cursor: "pointer", textAlign: "left", transition: "all .15s"
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--purple)"; e.currentTarget.style.color = "var(--purple)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted2)"; }}
+                >{q}</button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── SEARCH MODE RESULTS ── */}
+      {mode === "search" && (
+        <>
+          {loading && (
+            <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 16, padding: 28, textAlign: "center" }}>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", border: "3px solid var(--border)", borderTopColor: "var(--blue)", animation: "sp .8s linear infinite", margin: "0 auto 16px" }} />
+              <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 15, marginBottom: 6 }}>Analyzing {searchQuery}...</div>
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>Getting muscles, form cues, tips & more</div>
+            </div>
+          )}
+          {!loading && result && (
+            <div ref={resultRef} style={{ animation: "fadeUp .4s ease" }}>
+              {result.error ? (
+                <div style={{ background: "rgba(248,113,113,.08)", border: "1px solid rgba(248,113,113,.2)", borderRadius: 12, padding: 16, color: "var(--red)", fontSize: 13 }}>{result.error}</div>
+              ) : (
+                <div>
+                  <div style={{ background: "linear-gradient(135deg, rgba(59,130,246,.12), rgba(99,102,241,.08))", border: "1px solid rgba(59,130,246,.25)", borderRadius: 16, padding: "16px 20px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(59,130,246,.15)", border: "1.5px solid rgba(59,130,246,.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🏋️</div>
+                    <div>
+                      <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 22, color: "var(--blue)", textTransform: "capitalize" }}>{result.exercise}</div>
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Complete guide · Beginner to Advanced</div>
+                    </div>
+                    {/* Ask follow-up button */}
+                    <button onClick={() => { setMode("chat"); setChatInput(`Tell me more about ${result.exercise} — `); }} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 10, background: "rgba(167,139,250,.12)", border: "1px solid rgba(167,139,250,.3)", color: "var(--purple)", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>💬 Ask follow-up</button>
+                  </div>
+                  {Object.entries(result.sections).map(([key, content], i) => {
+                    const style = SECTION_STYLES[key];
+                    if (!style || !content) return null;
+                    return (
+                      <div key={key} style={{ background: style.bg, border: "1px solid " + style.border, borderRadius: 14, padding: "16px 18px", marginBottom: 12, animation: `cardEntrance .4s ease ${i * 0.07}s both` }}>
+                        <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 13, color: style.color, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>{style.icon} {LABELS[key]}</div>
+                        <div style={{ fontSize: 13, lineHeight: 1.75, color: "var(--text)", whiteSpace: "pre-wrap" }}>{content}</div>
+                      </div>
+                    );
+                  })}
+                  <div style={{ marginTop: 20, display: "flex", gap: 8, justifyContent: "center" }}>
+                    <button onClick={() => { setResult(null); setSearchQuery(""); inputRef.current?.focus(); }} style={{ padding: "10px 24px", borderRadius: 10, background: "var(--s2)", border: "1px solid var(--border)", color: "var(--muted2)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>← Search Another</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {!loading && !result && history.length > 0 && (
+            <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13 }}>🕐 Recent Searches</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", padding: "12px 16px" }}>
+                {history.map((h, i) => (
+                  <button key={i} onClick={() => { setSearchQuery(h.exercise); searchExercise(h.exercise); }} style={{ padding: "5px 12px", borderRadius: 20, background: "var(--s2)", border: "1px solid var(--border)", color: "var(--muted2)", fontSize: 12, fontWeight: 600, cursor: "pointer", textTransform: "capitalize" }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = "var(--blue)"; e.currentTarget.style.color = "var(--blue)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted2)"; }}
+                  >{h.exercise}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          {!loading && !result && history.length === 0 && (
+            <div style={{ textAlign: "center", padding: "40px 20px" }}>
+              <div style={{ fontSize: 52, marginBottom: 14 }}>💪</div>
+              <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18, marginBottom: 8 }}>Any exercise, explained perfectly</div>
+              <div style={{ fontSize: 13, color: "var(--muted)", maxWidth: 300, margin: "0 auto" }}>Search any exercise to get muscles, step-by-step form, mistakes to avoid, and tips for all levels.</div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── CHAT MODE ── */}
+      {mode === "chat" && (
+        <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 16, overflow: "hidden" }}>
+          {/* Chat messages */}
+          <div style={{ minHeight: 300, maxHeight: 480, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+            {chatHistory.length === 0 && (
+              <div style={{ textAlign: "center", padding: "40px 20px", color: "var(--muted)" }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>💬</div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text)", marginBottom: 6 }}>Ask anything about exercise</div>
+                <div style={{ fontSize: 12 }}>Form fixes, muscle targeting, technique questions — anything goes</div>
+              </div>
+            )}
+            {chatHistory.map((msg, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+                <div style={{
+                  maxWidth: "82%", padding: "10px 14px", borderRadius: msg.role === "user" ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
+                  background: msg.role === "user" ? "linear-gradient(135deg,#3b82f6,#6366f1)" : "var(--s2)",
+                  border: msg.role === "user" ? "none" : "1px solid var(--border)",
+                  color: msg.role === "user" ? "#fff" : "var(--text)",
+                  fontSize: 13, lineHeight: 1.65, whiteSpace: "pre-wrap"
+                }}>
+                  {msg.role === "assistant" && (
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--purple)", marginBottom: 5, textTransform: "uppercase", letterSpacing: ".05em" }}>🏋️ Coach</div>
+                  )}
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {chatLoading && (
+              <div style={{ display: "flex", justifyContent: "flex-start" }}>
+                <div style={{ padding: "10px 16px", borderRadius: "16px 16px 16px 4px", background: "var(--s2)", border: "1px solid var(--border)", display: "flex", gap: 5, alignItems: "center" }}>
+                  {[0, 1, 2].map(i => (
+                    <div key={i} style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--muted)", animation: `bounce .9s ease ${i * 0.15}s infinite` }} />
+                  ))}
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Chat input */}
+          <div style={{ borderTop: "1px solid var(--border)", padding: 12, display: "flex", gap: 8 }}>
+            <textarea
+              className="fi"
+              style={{ flex: 1, resize: "none", minHeight: 42, maxHeight: 100, fontSize: 13, fontFamily: "'DM Sans',sans-serif", lineHeight: 1.5 }}
+              placeholder="Ask about form, muscles, technique fixes..."
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={handleChatKey}
+              rows={1}
+            />
+            <button onClick={() => sendChat()} disabled={chatLoading || !chatInput.trim()} style={{
+              padding: "10px 18px", borderRadius: 10, border: "none",
+              background: (chatLoading || !chatInput.trim()) ? "var(--s3)" : "linear-gradient(135deg,#6366f1,#3b82f6)",
+              color: (chatLoading || !chatInput.trim()) ? "var(--muted)" : "#fff",
+              cursor: (chatLoading || !chatInput.trim()) ? "not-allowed" : "pointer",
+              fontWeight: 700, fontSize: 13, flexShrink: 0,
+              boxShadow: (chatLoading || !chatInput.trim()) ? "none" : "0 4px 14px rgba(99,102,241,.3)"
+            }}>Send</button>
+          </div>
+          <div style={{ padding: "0 12px 10px", fontSize: 10, color: "var(--muted)" }}>Enter to send · Shift+Enter for new line</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HOW TO INTEGRATE — READ THIS CAREFULLY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/* 
+═══════════════════════════════════════════════════
+INTEGRATION POINT 1: Import in App.jsx
+═══════════════════════════════════════════════════
+
+At the top of App.jsx, update your import from "./additions":
+
+  import {
+    CSS_ADDITIONS,
+    EnhancedFoodLogSection,
+    ClientProfilePanel,
+    AddClientFullscreenEnhanced,
+    MyProfileSection,
+    CoachMediaView,
+    POSES,
+    AIMotivationSection,   // ← ADD THIS
+    AIExerciseGuide,       // ← ADD THIS
+  } from "./additions";
+
+═══════════════════════════════════════════════════
+INTEGRATION POINT 2: Add "guide" tab to client tabs
+═══════════════════════════════════════════════════
+
+In App.jsx, find the `tabs` array for clients (around line where isCoach check is):
+
+  const tabs = isCoach
+    ? [["home", "Dashboard"], ["clients", "Clients"], ["analytics", "Analytics"]]
+    : [["home", "Home"], ["checkin", "Weekly Check-in"], ["nutrition", "Nutrition"],
+       ["sources", "My Sources"], ["training", "Training"], ["photos", "Photos"],
+       ["comparison", "Compare"], ["chat", "Chat"],
+       ["guide", "Exercise Guide"]];   // ← ADD THIS LINE
+
+Also add the icon in the bottom nav icons object:
+  const icons = {
+    ...
+    guide: "🏋️",  // ← ADD THIS
+  };
+
+═══════════════════════════════════════════════════
+INTEGRATION POINT 3: Add Exercise Guide tab in ClientDash
+═══════════════════════════════════════════════════
+
+In ClientDash function, after the "if (tab === 'comparison')" block,
+add this new block:
+
+  if (tab === "guide") {
+    return (
+      <div className="page">
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Exercise Guide</div>
+          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>AI-powered form & technique coach</div>
+        </div>
+        <AIExerciseGuide
+          uid={uid}
+          db={db}
+          doc={doc}
+          updateDoc={updateDoc}
+          collection={collection}
+          addDoc={addDoc}
+        />
+      </div>
+    );
+  }
+
+═══════════════════════════════════════════════════
+INTEGRATION POINT 4: Add Motivation in client HOME tab
+═══════════════════════════════════════════════════
+
+In ClientDash, in the HOME section (the last return block),
+find this line:
+  
+  <div className="card stagger-3" style={{ marginBottom: 16 }}>
+    <div className="card-title">Message from Coach ...
+
+BEFORE that card, add:
+
+  <div className="card stagger-2b" style={{ marginBottom: 16 }}>
+    <AIMotivationSection
+      client={{ ...d, id: uid }}
+      isCoach={false}
+      db={db}
+      doc={doc}
+      updateDoc={updateDoc}
+      collection={collection}
+      addDoc={addDoc}
+      getDocs={getDocs}
+      query={query}
+      where={where}
+      serverTimestamp={serverTimestamp}
+    />
+  </div>
+
+═══════════════════════════════════════════════════
+INTEGRATION POINT 5 (BONUS): Add to Coach client view
+═══════════════════════════════════════════════════
+
+In CoachDash, add a new inner tab "motivation" to the tab bar:
+
+  Find:  [["overview","Overview"],["checkins","Check-ins"], ...
+  Add:   ["motivation","Motivation"],
+
+Then in the tab content area, add:
+
+  {innerTab === "motivation" && (
+    <div className="card">
+      <div className="card-title">AI Motivation for {sel.name}</div>
+      <AIMotivationSection
+        client={{ ...sel, id: selId }}
+        isCoach={true}
+        db={db}
+        doc={doc}
+        updateDoc={updateDoc}
+        collection={collection}
+        addDoc={addDoc}
+        getDocs={getDocs}
+        query={query}
+        where={where}
+        serverTimestamp={serverTimestamp}
+      />
+    </div>
+  )}
+
+═══════════════════════════════════════════════════
+FIRESTORE RULES — Add these collections
+═══════════════════════════════════════════════════
+
+In your Firebase console → Firestore → Rules, ensure these collections are allowed:
+
+  match /motivationMessages/{docId} {
+    allow read, write: if request.auth != null;
+  }
+  match /exerciseGuideHistory/{docId} {
+    allow read, write: if request.auth != null;
+  }
+
+═══════════════════════════════════════════════════
+IMPORTANT NOTE on `query` naming conflict
+═══════════════════════════════════════════════════
+
+In App.jsx, "query" is already imported from Firebase AND used as a local
+state variable in AIExerciseGuide. To avoid conflicts, the AIExerciseGuide
+component uses its own internal state named `query` (lowercase) which is
+fine since it's local. The Firebase `query` function is passed as a prop
+named `query` only to AIMotivationSection — just make sure your import
+from firebase/firestore is: import { ..., query as fsQuery, ... }
+and pass it as: query={fsQuery}
+
+OR simply rename the prop to `fsQuery` in AIMotivationSection if you prefer.
+*/
