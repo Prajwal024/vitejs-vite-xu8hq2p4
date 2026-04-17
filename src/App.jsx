@@ -6,6 +6,8 @@ import {
   MyProfileSection,
   CoachMediaView,
   POSES,
+  AIMotivationSection,
+  AIExerciseGuide,
 } from "./additions";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -2103,6 +2105,24 @@ const [compareSelections, setCompareSelections] = useState([]);
       </div>
     );
   }
+  if (tab === "guide") {
+    return (
+      <div className="page">
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Exercise Guide</div>
+          <div style={{ color: "var(--muted)", fontSize: 13, marginTop: 5 }}>AI-powered form & technique coach</div>
+        </div>
+        <AIExerciseGuide
+          uid={uid}
+          db={db}
+          doc={doc}
+          updateDoc={updateDoc}
+          collection={collection}
+          addDoc={addDoc}
+        />
+      </div>
+    );
+  }
 
   // HOME
   const checkins = d.weeklyCheckins || [];
@@ -2133,6 +2153,21 @@ const [compareSelections, setCompareSelections] = useState([]);
           <span style={{ fontSize: 20 }}>→</span>
         </div>
       </div>
+      <div className="card stagger-2b" style={{ marginBottom: 16 }}>
+    <AIMotivationSection
+      client={{ ...d, id: uid }}
+      isCoach={false}
+      db={db}
+      doc={doc}
+      updateDoc={updateDoc}
+      collection={collection}
+      addDoc={addDoc}
+      getDocs={getDocs}
+      query={query}
+      where={where}
+      serverTimestamp={serverTimestamp}
+    />
+  </div>
       <div className="card stagger-3" style={{ marginBottom: 16 }}>
         <div className="card-title">Message from Coach {flash.msg && <span className="nbadge">New</span>}</div>
         <div className={"msg-b" + (d.coachMessage ? " has" : "")}>{d.coachMessage || "Your coach has not sent a message yet."}</div>
@@ -2377,7 +2412,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
 }}>
   {[["overview","Overview"],["checkins","Check-ins"],["chat","Chat"],["photos","Media"],
     ["comparison","Compare"],["nutrition","Macros"],["meals","Meals"],
-    ["workout","Workout"],["phase","Phase"],["sources","Sources"]].map(([k, l]) => (
+    ["workout","Workout"],["phase","Phase"],["sources","Sources"],  ["motivation","Motivation"]].map(([k, l]) => (
     <button key={k} 
       className={innerTab === k ? "tab-item active" : "tab-item"} 
       style={{ whiteSpace: "nowrap", flexShrink: 0 }}
@@ -2529,6 +2564,24 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
     </div>
   </div>
 )}
+ {innerTab === "motivation" && (
+    <div className="card">
+      <div className="card-title">AI Motivation for {sel.name}</div>
+      <AIMotivationSection
+        client={{ ...sel, id: selId }}
+        isCoach={true}
+        db={db}
+        doc={doc}
+        updateDoc={updateDoc}
+        collection={collection}
+        addDoc={addDoc}
+        getDocs={getDocs}
+        query={query}
+        where={where}
+        serverTimestamp={serverTimestamp}
+      />
+    </div>
+  )}
 
 {innerTab === "photos" && (
   <CoachMediaView
@@ -3110,7 +3163,7 @@ const [networkError, setNetworkError] = useState(false);
   const isCoach = user.role === "coach";
   const tabs = isCoach
     ? [["home", "Dashboard"], ["clients", "Clients"], ["analytics", "Analytics"]]
-    : [["home", "Home"], ["checkin", "Weekly Check-in"], ["nutrition", "Nutrition"], ["sources", "My Sources"], ["training", "Training"], ["photos", "Photos"], ["comparison", "Compare"], ["chat", "Chat"]];
+    : [["home", "Home"], ["checkin", "Weekly Check-in"], ["nutrition", "Nutrition"], ["sources", "My Sources"], ["training", "Training"], ["photos", "Photos"], ["comparison", "Compare"], ["chat", "Chat"], ["guide", "Exercise Guide"]];
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -3164,7 +3217,7 @@ const [networkError, setNetworkError] = useState(false);
     const icons = {
       home: "🏠", checkin: "📅", nutrition: "🥗", sources: "🫙",
       training: "🏋️", photos: "📸", comparison: "📊", chat: "💬",
-      profile: "👤", clients: "👥", analytics: "📈"
+      profile: "👤", clients: "👥", analytics: "📈", guide: "🏋️"
     };
     const isActive = tab === k;
     return (
