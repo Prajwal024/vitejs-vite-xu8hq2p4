@@ -8,6 +8,7 @@ import {
   POSES,
   AIMotivationSection,
   AIExerciseGuide,
+  CanIEatThis,
 } from "./additions";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -1924,6 +1925,13 @@ const [compareSelections, setCompareSelections] = useState([]);
 
   
   if (tab === "nutrition") {
+    const today = new Date().toLocaleDateString("en-IN");
+    const todayMealLogs = (() => {
+      if (!d.foodLogs) return {};
+      if (Array.isArray(d.foodLogs)) return d.foodLogs.find(l => l.date === today)?.mealData || {};
+      return d.foodLogs[today]?.mealData || {};
+    })();
+
     return (
       <div className="page">
         <div style={{ marginBottom: 18 }}>
@@ -1931,6 +1939,18 @@ const [compareSelections, setCompareSelections] = useState([]);
           <div className="live" style={{ marginTop: 7 }}><span className="dot" />Live from coach</div>
         </div>
         <EnhancedFoodLogSection uid={uid} d={d} toast={toast} targetNutrition={n} mealPlan={meals} />
+        <CanIEatThis
+          client={{ ...d, id: uid }}
+          mealLogs={todayMealLogs}
+          targetNutrition={d.nutrition}
+          mealPlan={d.mealPlan}
+          db={db}
+          doc={doc}
+          updateDoc={updateDoc}
+          collection={collection}
+          addDoc={addDoc}
+          serverTimestamp={serverTimestamp}
+        />
       </div>
     );
   }
