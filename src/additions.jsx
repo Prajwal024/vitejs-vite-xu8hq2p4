@@ -1961,7 +1961,448 @@ Be conversational, precise, and helpful. When someone describes what they feel o
     </div>
   );
 }
+// ═══════════════════════════════════════════════════════════════════════════════
+// FEATURE 3: CAN I EAT THIS?
+// ═══════════════════════════════════════════════════════════════════════════════
 
+export function CanIEatThis({ client, mealLogs, targetNutrition, mealPlan, db, doc, updateDoc, collection, addDoc, serverTimestamp }) {
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [history, setHistory] = useState([]);
+  const inputRef = useRef(null);
+
+  const QUICK_FOODS = [
+    "🍕 Pizza (2 slices)", "🍔 Burger", "🍚 Biryani", "🍫 Chocolate",
+    "🥤 Cold drink", "🍟 Fries", "🍩 Donut", "🧁 Cupcake",
+    "🍜 Maggi", "🥛 Protein shake"
+  ];
+
+  // Calculate today's nutrition from mealLogs
+  const getTodayStats = () => {
+    const logs = mealLogs || {};
+    const loggedCal     = Object.values(logs).reduce((a, m) => a + (parseFloat(m?.cal)     || 0), 0);
+    const loggedProtein = Object.values(logs).reduce((a, m) => a + (parseFloat(m?.protein) || 0), 0);
+    const loggedCarbs   = Object.values(logs).reduce((a, m) => a + (parseFloat(m?.carbs)   || 0), 0);
+    const loggedFats    = Object.values(logs).reduce((a, m) => a + (parseFloat(m?.fats)    || 0), 0);
+
+    const goalCal     = targetNutrition?.calories || 2000;
+    const goalProtein = targetNutrition?.protein  || 150;
+    const goalCarbs   = targetNutrition?.carbs    || 200;
+    const goalFats    = targetNutrition?.fats     || 60;
+
+    return {
+      logged: { cal: loggedCal, protein: loggedProtein, carbs: loggedCarbs, fats: loggedFats },
+      goal:   { cal: goalCal,   protein: goalProtein,   carbs: goalCarbs,   fats: goalFats   },
+      remaining: {
+        cal:     goalCal     - loggedCal,
+        protein: goalProtein - loggedProtein,
+        carbs:   goalCarbs   - loggedCarbs,
+        fats:    goalFats    - loggedFats,
+      },
+      pct: Math.round((loggedCal / goalCal) * 100)
+    };
+  };
+
+  const buildPrompt = (foodItem, stats) => {
+    const mealsLogged = Object.keys(mealLogs || {});
+    const mealsSummary = mealsLogged.length > 0
+      ? mealsLogged.map(m => {
+          const l = mealLogs[m];
+          return `${m}: ${l.cal}kcal, P${l.protein}g, C${l.carbs}g, F${l.fats}g`;
+        }).join("\n")
+      : "No meals logged yet today";
+
+    return `You are a fun, honest fitness nutrition coach. A client wants to know if they can eat something right now.
+
+CLIENT PROFILE:
+- Name: ${client?.name?.split(" ")[0] || "the client"}
+- Goal: ${client?.primaryGoal || "Fat Loss"}
+- Phase: ${client?.phase || "Cut"}
+- Week: ${client?.week || 1}
+
+TODAY'S NUTRITION SO FAR:
+${mealsSummary}
+
+TOTALS SO FAR:
+- Calories: ${Math.round(stats.logged.cal)} / ${stats.goal.cal} kcal (${stats.pct}% of goal)
+- Protein: ${Math.round(stats.logged.protein)} / ${stats.goal.protein}g
+- Carbs: ${Math.round(stats.logged.carbs)} / ${stats.goal.carbs}g
+- Fats: ${Math.round(stats.logged.fats)} / ${stats.goal.fats}g
+
+REMAINING BUDGET:
+- Calories left: ${Math.round(stats.remaining.cal)} kcal
+- Protein left: ${Math.round(stats.remaining.protein)}g
+- Carbs left: ${Math.round(stats.remaining.carbs)}g
+- Fats left: ${Math.round(stats.remaining.fats)}g
+
+THE FOOD THEY WANT TO EAT: "${foodItem}"
+
+YOUR JOB:
+1. Estimate the approximate nutrition of "${foodItem}" (calories, protein, carbs, fats)
+2. Check if it fits their remaining budget
+3. Give an honest, fun, personalized verdict
+
+Response format - respond ONLY with this JSON (no markdown, no extra text):
+{
+  "food": "name of food as understood",
+  "estimate": {
+    "cal": number,
+    "protein": number,
+    "carbs": number,
+    "fats": number
+  },
+  "verdict": "YES" | "MAYBE" | "NO",
+  "emoji": "single relevant emoji",
+  "headline": "short punchy verdict line (max 8 words)",
+  "message": "2-3 sentence honest fun explanation referencing their actual data",
+  "tip": "one practical tip or smart swap if needed",
+  "fitsInBudget": true | false
+}`;
+  };
+
+  const checkFood = async (overrideFood) => {
+    const food = (overrideFood || input).trim();
+    if (!food) return;
+    setLoading(true);
+    setResult(null);
+
+    const stats = getTodayStats();
+
+    try {
+      const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "llama-3.1-8b-instant",
+          max_tokens: 600,
+          messages: [{ role: "user", content: buildPrompt(food, stats) }]
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error?.message || `HTTP ${response.status}`);
+
+      let rawText = data.choices?.[0]?.message?.content?.trim();
+      if (!rawText) throw new Error("No response");
+
+      // Strip markdown fences if present
+      rawText = rawText.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(rawText);
+
+      const entry = { ...parsed, stats, queriedFood: food, timestamp: new Date().toISOString() };
+      setResult(entry);
+      setHistory(prev => [entry, ...prev].slice(0, 5));
+
+      // Save to Firestore optionally
+      if (client?.id && db && collection && addDoc) {
+        try {
+          await addDoc(collection(db, "canIEatThis"), {
+            clientId: client.id,
+            food: parsed.food,
+            verdict: parsed.verdict,
+            calories: parsed.estimate?.cal,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (e) { /* non-critical */ }
+      }
+
+    } catch (e) {
+      setResult({ error: `❌ ${e.message || "Couldn't analyze. Try again!"}` });
+    }
+    setLoading(false);
+  };
+
+  const handleKey = (e) => { if (e.key === "Enter") checkFood(); };
+
+  const VERDICT_STYLES = {
+    YES:   { color: "#22c55e", bg: "rgba(34,197,94,.1)",   border: "rgba(34,197,94,.3)",   label: "Go for it!" },
+    MAYBE: { color: "#fbbf24", bg: "rgba(251,191,36,.1)",  border: "rgba(251,191,36,.3)",  label: "Maybe..." },
+    NO:    { color: "#f87171", bg: "rgba(248,113,113,.1)", border: "rgba(248,113,113,.3)", label: "Not today" },
+  };
+
+  const stats = getTodayStats();
+  const hasLogs = Object.keys(mealLogs || {}).length > 0;
+
+  return (
+    <div style={{ marginTop: 16 }}>
+
+      {/* ── Header card ── */}
+      <div style={{
+        background: "linear-gradient(135deg, rgba(251,191,36,.08), rgba(251,146,60,.06))",
+        border: "1px solid rgba(251,191,36,.25)", borderRadius: 16,
+        padding: 18, marginBottom: 14
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <div style={{ fontSize: 28 }}>🤔</div>
+          <div>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16, color: "var(--text)" }}>
+              Can I Eat This?
+            </div>
+            <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 1 }}>
+              AI checks your calorie budget & gives an honest verdict
+            </div>
+          </div>
+        </div>
+
+        {/* Today's budget summary */}
+        <div style={{
+          background: "var(--s2)", borderRadius: 10, padding: "10px 14px",
+          border: "1px solid var(--border)", marginBottom: 12
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>
+            Your Budget Today
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+            {[
+              ["🔥 Left", Math.round(stats.remaining.cal) + " kcal", stats.remaining.cal > 200 ? "var(--green)" : stats.remaining.cal > 0 ? "var(--orange)" : "var(--red)"],
+              ["Used", Math.round(stats.logged.cal) + " kcal", "var(--muted)"],
+              ["Goal", stats.goal.cal + " kcal", "var(--blue)"],
+            ].map(([l, v, co]) => (
+              <div key={l} style={{ flex: 1, minWidth: 70, background: "var(--s1)", borderRadius: 8, padding: "8px 10px", border: "1px solid var(--border)", textAlign: "center" }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginBottom: 3 }}>{l}</div>
+                <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 13, color: co }}>{v}</div>
+              </div>
+            ))}
+          </div>
+          {/* Progress bar */}
+          <div style={{ height: 6, borderRadius: 3, background: "var(--border)", overflow: "hidden" }}>
+            <div style={{
+              height: "100%", borderRadius: 3,
+              width: Math.min(stats.pct, 100) + "%",
+              background: stats.pct > 100 ? "var(--red)" : stats.pct > 80 ? "var(--orange)" : "var(--green)",
+              transition: "width .8s ease"
+            }} />
+          </div>
+          <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 4, textAlign: "right" }}>
+            {stats.pct}% of daily goal used
+          </div>
+          {!hasLogs && (
+            <div style={{ marginTop: 8, fontSize: 11, color: "var(--orange)", fontWeight: 600 }}>
+              ⚠️ Log your meals above for accurate analysis
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            ref={inputRef}
+            className="fi"
+            style={{ flex: 1, fontSize: 14, fontWeight: 600, borderColor: "rgba(251,191,36,.4)", background: "var(--s2)" }}
+            placeholder="e.g. 2 slices of pizza, a samosa, chocolate..."
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKey}
+          />
+          <button
+            onClick={() => checkFood()}
+            disabled={loading || !input.trim()}
+            style={{
+              padding: "10px 18px", borderRadius: 10, border: "none", flexShrink: 0,
+              background: (loading || !input.trim())
+                ? "var(--s3)"
+                : "linear-gradient(135deg,#f59e0b,#f97316)",
+              color: (loading || !input.trim()) ? "var(--muted)" : "#fff",
+              cursor: (loading || !input.trim()) ? "not-allowed" : "pointer",
+              fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13,
+              boxShadow: (loading || !input.trim()) ? "none" : "0 4px 14px rgba(245,158,11,.35)",
+              transition: "all .2s"
+            }}
+          >
+            {loading ? "⏳" : "Check!"}
+          </button>
+        </div>
+
+        {/* Quick food pills */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
+          {QUICK_FOODS.map(f => (
+            <button key={f} onClick={() => { setInput(f); checkFood(f); }} style={{
+              padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600,
+              background: "var(--s2)", border: "1px solid var(--border)",
+              color: "var(--muted2)", cursor: "pointer", transition: "all .15s"
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = "#f59e0b"; e.currentTarget.style.color = "#f59e0b"; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted2)"; }}
+            >{f}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Loading ── */}
+      {loading && (
+        <div style={{
+          background: "var(--s1)", border: "1px solid var(--border)",
+          borderRadius: 14, padding: "24px 20px", textAlign: "center"
+        }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: "50%",
+            border: "3px solid var(--border)", borderTopColor: "#f59e0b",
+            animation: "sp .8s linear infinite", margin: "0 auto 14px"
+          }} />
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14 }}>
+            Analyzing your budget...
+          </div>
+          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+            Checking calories, macros & your goal
+          </div>
+        </div>
+      )}
+
+      {/* ── Result ── */}
+      {!loading && result && !result.error && (() => {
+        const vs = VERDICT_STYLES[result.verdict] || VERDICT_STYLES.MAYBE;
+        const afterCal = stats.logged.cal + (result.estimate?.cal || 0);
+        const afterPct = Math.round((afterCal / stats.goal.cal) * 100);
+
+        return (
+          <div style={{ animation: "bounceIn .4s ease" }}>
+            {/* Verdict hero */}
+            <div style={{
+              background: vs.bg, border: "1px solid " + vs.border,
+              borderRadius: 16, padding: 20, marginBottom: 12, textAlign: "center"
+            }}>
+              <div style={{ fontSize: 52, marginBottom: 8 }}>{result.emoji}</div>
+              <div style={{
+                fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 28,
+                color: vs.color, marginBottom: 4
+              }}>{result.headline}</div>
+              <div style={{
+                display: "inline-block", padding: "4px 16px", borderRadius: 20,
+                background: vs.color + "22", border: "1px solid " + vs.color + "55",
+                color: vs.color, fontWeight: 700, fontSize: 13, marginBottom: 14
+              }}>{vs.label}</div>
+
+              <div style={{
+                fontSize: 14, lineHeight: 1.7, color: "var(--text)",
+                fontWeight: 500, maxWidth: 440, margin: "0 auto"
+              }}>{result.message}</div>
+            </div>
+
+            {/* Nutrition breakdown */}
+            <div style={{
+              background: "var(--s1)", border: "1px solid var(--border)",
+              borderRadius: 14, padding: 16, marginBottom: 12
+            }}>
+              <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13, marginBottom: 12 }}>
+                📊 Nutrition Breakdown — {result.food}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8, marginBottom: 14 }}>
+                {[
+                  ["Cal", result.estimate?.cal, "var(--green)", "kcal"],
+                  ["Protein", result.estimate?.protein, "var(--purple)", "g"],
+                  ["Carbs", result.estimate?.carbs, "var(--orange)", "g"],
+                  ["Fat", result.estimate?.fats, "var(--red)", "g"],
+                ].map(([l, v, co, u]) => (
+                  <div key={l} style={{
+                    background: "var(--s2)", borderRadius: 10, padding: "10px 8px",
+                    border: "1px solid var(--border)", textAlign: "center"
+                  }}>
+                    <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16, color: co }}>
+                      {v}<span style={{ fontSize: 10, fontWeight: 500 }}>{u}</span>
+                    </div>
+                    <div style={{ fontSize: 10, color: "var(--muted)", fontWeight: 600, marginTop: 2 }}>{l}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Before / After calorie bar */}
+              <div style={{ marginBottom: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 600, color: "var(--muted)", marginBottom: 5 }}>
+                  <span>Before eating</span>
+                  <span>After eating</span>
+                </div>
+                <div style={{ height: 10, borderRadius: 5, background: "var(--border)", overflow: "hidden", position: "relative" }}>
+                  {/* Already eaten */}
+                  <div style={{
+                    position: "absolute", left: 0, top: 0, height: "100%",
+                    width: Math.min((stats.logged.cal / stats.goal.cal) * 100, 100) + "%",
+                    background: "var(--green)", borderRadius: "5px 0 0 5px", transition: "width .8s ease"
+                  }} />
+                  {/* This food adds */}
+                  <div style={{
+                    position: "absolute", top: 0, height: "100%",
+                    left: Math.min((stats.logged.cal / stats.goal.cal) * 100, 100) + "%",
+                    width: Math.min(((result.estimate?.cal || 0) / stats.goal.cal) * 100, 100 - Math.min((stats.logged.cal / stats.goal.cal) * 100, 100)) + "%",
+                    background: result.verdict === "YES" ? "#22c55e99" : result.verdict === "MAYBE" ? "#fbbf2499" : "#f8717199",
+                    transition: "width .8s ease"
+                  }} />
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--muted)", marginTop: 4 }}>
+                  <span>{Math.round(stats.logged.cal)} kcal used</span>
+                  <span style={{ color: afterPct > 100 ? "var(--red)" : afterPct > 85 ? "var(--orange)" : "var(--green)", fontWeight: 700 }}>
+                    → {Math.round(afterCal)} kcal ({afterPct}% of goal)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tip */}
+            {result.tip && (
+              <div style={{
+                background: "rgba(59,130,246,.06)", border: "1px solid rgba(59,130,246,.2)",
+                borderRadius: 12, padding: "12px 14px", marginBottom: 12,
+                display: "flex", gap: 10, alignItems: "flex-start"
+              }}>
+                <div style={{ fontSize: 18, flexShrink: 0 }}>💡</div>
+                <div style={{ fontSize: 13, color: "var(--text)", lineHeight: 1.6 }}>
+                  <strong style={{ color: "var(--blue)" }}>Coach tip: </strong>{result.tip}
+                </div>
+              </div>
+            )}
+
+            {/* Try another */}
+            <button
+              onClick={() => { setResult(null); setInput(""); inputRef.current?.focus(); }}
+              style={{
+                width: "100%", padding: "11px", borderRadius: 10,
+                background: "var(--s2)", border: "1px solid var(--border)",
+                color: "var(--muted2)", fontSize: 13, fontWeight: 600, cursor: "pointer"
+              }}
+            >🔄 Check Another Food</button>
+          </div>
+        );
+      })()}
+
+      {/* ── Error ── */}
+      {!loading && result?.error && (
+        <div style={{
+          background: "rgba(248,113,113,.08)", border: "1px solid rgba(248,113,113,.2)",
+          borderRadius: 12, padding: 14, color: "var(--red)", fontSize: 13
+        }}>{result.error}</div>
+      )}
+
+      {/* ── History ── */}
+      {!loading && !result && history.length > 0 && (
+        <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13 }}>
+            🕐 Recent Checks
+          </div>
+          {history.map((h, i) => {
+            const vs = VERDICT_STYLES[h.verdict] || VERDICT_STYLES.MAYBE;
+            return (
+              <div key={i} style={{
+                padding: "10px 16px", borderBottom: i < history.length - 1 ? "1px solid var(--border)" : "none",
+                display: "flex", alignItems: "center", gap: 10, cursor: "pointer"
+              }} onClick={() => { setInput(h.queriedFood); checkFood(h.queriedFood); }}>
+                <div style={{ fontSize: 20 }}>{h.emoji}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{h.food}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted)" }}>~{h.estimate?.cal} kcal</div>
+                </div>
+                <div style={{
+                  padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                  background: vs.color + "18", color: vs.color, border: "1px solid " + vs.color + "44"
+                }}>{vs.label}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HOW TO INTEGRATE — READ THIS CAREFULLY
