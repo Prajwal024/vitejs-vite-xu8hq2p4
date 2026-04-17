@@ -1654,7 +1654,7 @@ Be conversational, precise, and helpful. When someone describes what they feel o
     });
     return sections;
   };
-
+  console.log("GROQ KEY:", import.meta.env.VITE_GROQ_API_KEY)
   const callGroq = async (messages, maxTokens = 1024) => {
     const apiKey = import.meta.env.VITE_GROQ_API_KEY;
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
