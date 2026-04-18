@@ -1149,16 +1149,46 @@ export function MyProfileSection({ uid, d, toast }) {
         {/* ── SECTION 2: Daily Routine ── */}
         <div className="profile-page-section stagger-2">
           <div className="profile-page-title"><span style={{ fontSize: 18 }}>⏰</span> Daily Routine</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-            <div className="fld">
-              <div className="fl" style={{ color: "var(--yellow)" }}>🌅 Wake-up Time</div>
-              <input type="time" value={form.wakeTime} onChange={e => setForm(p => ({ ...p, wakeTime: e.target.value }))} style={{ width: "100%", background: "var(--s2)", border: "1.5px solid var(--border)", borderRadius: 9, color: "var(--text)", fontFamily: "'DM Sans',sans-serif", fontSize: 14, padding: "10px 12px", outline: "none" }} />
-            </div>
-            <div className="fld">
-              <div className="fl" style={{ color: "var(--blue)" }}>🌙 Sleep Time</div>
-              <input type="time" value={form.sleepTime} onChange={e => setForm(p => ({ ...p, sleepTime: e.target.value }))} style={{ width: "100%", background: "var(--s2)", border: "1.5px solid var(--border)", borderRadius: 9, color: "var(--text)", fontFamily: "'DM Sans',sans-serif", fontSize: 14, padding: "10px 12px", outline: "none" }} />
-            </div>
-          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+  {[
+    { label: "🌅 Wake-up Time", key: "wakeTime", color: "var(--yellow)" },
+    { label: "🌙 Sleep Time",   key: "sleepTime", color: "var(--blue)"   },
+  ].map(({ label, key, color }) => (
+    <div key={key} style={{
+      background: "var(--s2)",
+      border: "1.5px solid var(--border)",
+      borderRadius: 12,
+      padding: "12px 14px",
+      display: "flex",
+      flexDirection: "column",
+      gap: 8,
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 700,
+        color, textTransform: "uppercase",
+        letterSpacing: ".07em"
+      }}>{label}</div>
+      <input
+        type="time"
+        value={form[key]}
+        onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))}
+        style={{
+          width: "100%",
+          background: "transparent",
+          border: "none",
+          color: "var(--text)",
+          fontFamily: "'Outfit',sans-serif",
+          fontWeight: 800,
+          fontSize: 18,
+          outline: "none",
+          padding: 0,
+          // Fix Android time picker color
+          colorScheme: "dark",
+        }}
+      />
+    </div>
+  ))}
+</div>
           {sleepInfo && (
             <div style={{ padding: "12px 16px", background: sleepInfo.color + "14", border: "1px solid " + sleepInfo.color + "44", borderRadius: 10, marginBottom: 14 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: sleepInfo.color, marginBottom: 4 }}>{sleepInfo.emoji} {sleepInfo.hrs}h {sleepInfo.mins}m sleep</div>
