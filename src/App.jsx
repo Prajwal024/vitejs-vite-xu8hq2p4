@@ -9,6 +9,8 @@ import {
   AIMotivationSection,
   AIExerciseGuide,
   CanIEatThis,
+  MondayMessagesSection,
+  ClientMessageInbox,
 } from "./additions";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
@@ -616,13 +618,17 @@ function ChatFullHeight({ currentUid, otherUid, currentName, otherName }) {
     msgsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // When keyboard opens on mobile, scroll to bottom
+  // KEY FIX: When virtual keyboard opens, scroll to bottom
   useEffect(() => {
-    const handler = () => {
-      setTimeout(() => msgsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 300);
+    const handleResize = () => {
+      setTimeout(() => {
+        msgsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
     };
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
+    if (typeof visualViewport !== "undefined") {
+      visualViewport.addEventListener("resize", handleResize);
+      return () => visualViewport.removeEventListener("resize", handleResize);
+    }
   }, []);
 
   const sendMsg = async () => {
@@ -637,24 +643,26 @@ function ChatFullHeight({ currentUid, otherUid, currentName, otherName }) {
       participants: [currentUid, otherUid], lastMessage: msg, lastTimestamp: serverTimestamp()
     }, { merge: true });
     setSending(false);
-    inputRef.current?.focus();
-  };
-
-  const handleKey = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); }
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   return (
     <div style={{
       display: "flex", flexDirection: "column",
       height: "100%",
-      background: "var(--s1)", border: "1px solid var(--border)",
-      borderRadius: 14, overflow: "hidden"
+      // KEY: use dvh units so it shrinks when keyboard opens
+      maxHeight: "100%",
+      overflow: "hidden",
     }}>
-      {/* Messages area */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* Messages scroll area */}
+      <div style={{ 
+        flex: 1, overflowY: "auto", 
+        padding: "14px 14px 8px",
+        display: "flex", flexDirection: "column", gap: 8,
+        WebkitOverflowScrolling: "touch",
+      }}>
         {messages.length === 0 && (
-          <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, padding: 28, margin: "auto" }}>
+          <div style={{ textAlign: "center", color: "var(--muted)", fontSize: 13, margin: "auto", padding: 28 }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>👋</div>
             No messages yet. Say hi!
           </div>
@@ -670,45 +678,57 @@ function ChatFullHeight({ currentUid, otherUid, currentName, otherName }) {
               alignItems: isMe ? "flex-end" : "flex-start",
               alignSelf: isMe ? "flex-end" : "flex-start",
               maxWidth: "78%",
-              animation: "msgSlideIn .2s ease both",
-              animationDelay: i * 0.01 + "s"
             }}>
               <div style={{
-                padding: "9px 13px", borderRadius: isMe ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-                fontSize: 13, lineHeight: 1.5, wordBreak: "break-word",
+                padding: "10px 14px",
+                borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                fontSize: 14, lineHeight: 1.5, wordBreak: "break-word",
                 background: isMe ? "linear-gradient(135deg,#22c55e,#16a34a)" : "var(--s2)",
                 color: isMe ? "#fff" : "var(--text)",
-                border: isMe ? "none" : "1px solid var(--border)"
+                border: isMe ? "none" : "1px solid var(--border)",
+                boxShadow: "0 2px 8px rgba(0,0,0,.2)",
               }}>{m.text}</div>
               <div style={{ fontSize: 10, color: "var(--muted)", marginTop: 3, padding: "0 4px" }}>{ts}</div>
             </div>
           );
         })}
-        <div ref={msgsEndRef} />
+        <div ref={msgsEndRef} style={{ height: 1 }} />
       </div>
 
-      {/* Input row — pinned to bottom */}
+      {/* Input — always pinned to bottom, above keyboard */}
       <div style={{
-        display: "flex", gap: 8, padding: "10px 12px",
+        display: "flex", gap: 8,
+        padding: "10px 12px",
+        paddingBottom: "max(12px, env(safe-area-inset-bottom))",
         borderTop: "1px solid var(--border)",
-        background: "var(--s2)",
-        flexShrink: 0
+        background: "rgba(8,13,26,.98)",
+        backdropFilter: "blur(12px)",
+        flexShrink: 0,
       }}>
         <input
           ref={inputRef}
           className="fi"
-          style={{ flex: 1, fontSize: 14, borderRadius: 22, padding: "10px 16px" }}
+          style={{ 
+            flex: 1, fontSize: 15, 
+            borderRadius: 24, 
+            padding: "11px 18px",
+            background: "var(--s2)",
+          }}
           placeholder={`Message ${otherName}...`}
           value={text}
           onChange={e => setText(e.target.value)}
-          onKeyDown={handleKey}
+          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
+          // Don't zoom on iOS
+          inputMode="text"
         />
         <button
           className="btn btn-p"
           onClick={sendMsg}
           disabled={sending || !text.trim()}
-          style={{ borderRadius: 22, padding: "10px 18px", flexShrink: 0 }}
-        >Send</button>
+          style={{ borderRadius: 24, padding: "11px 20px", flexShrink: 0, fontSize: 14 }}
+        >
+          {sending ? "..." : "Send"}
+        </button>
       </div>
     </div>
   );
@@ -1905,21 +1925,42 @@ const [compareSelections, setCompareSelections] = useState([]);
   );
 
   if (tab === "chat") return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100dvh", overflow: "hidden" }}>
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 150,
+      display: "flex", flexDirection: "column",
+      background: "var(--bg)",
+      paddingTop: "env(safe-area-inset-top)",
+    }}>
       {/* Header */}
-      <div style={{ padding: "16px 16px 10px", flexShrink: 0 }}>
-        <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 20, fontWeight: 800 }}>Chat with Coach</div>
-        <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 3 }}>Messages saved even after sign out</div>
+      <div style={{
+        background: "rgba(8,13,26,.97)",
+        borderBottom: "1px solid var(--border)",
+        padding: "10px 16px", flexShrink: 0,
+        display: "flex", alignItems: "center", gap: 10, minHeight: 52,
+      }}>
+        <button className="btn btn-s btn-sm" onClick={() => setTab("home")}>← Back</button>
+        <div>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15 }}>Chat with Coach Ankit</div>
+          <div style={{ fontSize: 11, color: "var(--muted)" }}>Messages sync in real-time</div>
+        </div>
       </div>
-      {/* Chat fills remaining space above bottom nav */}
-      <div style={{ flex: 1, overflow: "hidden", padding: "0 12px", paddingBottom: "env(safe-area-inset-bottom)" }}>
+  
+      {/* Chat — minHeight:0 is the key fix */}
+      <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
         {coachId
-          ? <ChatFullHeight currentUid={uid} otherUid={coachId} currentName={d.name || "Client"} otherName="Coach Ankit" />
-          : <div className="card" style={{ margin: "0 4px" }}><div className="empty"><span className="empty-icon">💬</span><div className="empty-title">Chat not available</div></div></div>
+          ? <ChatFullHeight
+              currentUid={uid}
+              otherUid={coachId}
+              currentName={d.name || "Client"}
+              otherName="Coach Ankit"
+            />
+          : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)" }}>
+              Chat not available. Contact your coach.
+            </div>
         }
       </div>
     </div>
-  );
+  );;
 
   if (tab === "training") return <WorkoutFullscreen workout={workout} phase={d.phase} week={d.week} warmup={d.workoutWarmup || ""} cooldown={d.workoutCooldown || ""} onClose={() => setTab("home")} />;
 
@@ -2188,6 +2229,17 @@ const [compareSelections, setCompareSelections] = useState([]);
       serverTimestamp={serverTimestamp}
     />
   </div>
+  <div className="card stagger-2c" style={{ marginBottom: 16 }}>
+  <ClientMessageInbox
+    uid={uid}
+    clientName={d.name}
+    db={db}
+    collection={collection}
+    onSnapshot={onSnapshot}
+    doc={doc}
+    updateDoc={updateDoc}
+  />
+</div>
       <div className="card stagger-3" style={{ marginBottom: 16 }}>
         <div className="card-title">Message from Coach {flash.msg && <span className="nbadge">New</span>}</div>
         <div className={"msg-b" + (d.coachMessage ? " has" : "")}>{d.coachMessage || "Your coach has not sent a message yet."}</div>
@@ -2432,7 +2484,7 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
 }}>
   {[["overview","Overview"],["checkins","Check-ins"],["chat","Chat"],["photos","Media"],
     ["comparison","Compare"],["nutrition","Macros"],["meals","Meals"],
-    ["workout","Workout"],["phase","Phase"],["sources","Sources"],  ["motivation","Motivation"]].map(([k, l]) => (
+    ["workout","Workout"],["phase","Phase"],["sources","Sources"],  ["motivation","Motivation"],["monday","Monday Msg"]].map(([k, l]) => (
     <button key={k} 
       className={innerTab === k ? "tab-item active" : "tab-item"} 
       style={{ whiteSpace: "nowrap", flexShrink: 0 }}
@@ -2602,6 +2654,22 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
       />
     </div>
   )}
+  {innerTab === "monday" && (
+  <MondayMessagesSection
+    clients={[sel]}
+    coachUid={coachUid}
+    db={db}
+    doc={doc}
+    updateDoc={updateDoc}
+    collection={collection}
+    addDoc={addDoc}
+    getDocs={getDocs}
+    query={query}
+    where={where}
+    serverTimestamp={serverTimestamp}
+    toast={toast}
+  />
+)}
 
 {innerTab === "photos" && (
   <CoachMediaView
@@ -2808,6 +2876,26 @@ function CoachDash({ coachUid, coachEmail, coachName, tab, setTab, toast }) {
         <div><div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>My Clients</div><div style={{ color: "var(--muted)", fontSize: 13, marginTop: 3 }}>{clients.length} total</div></div>
         <button className="btn btn-p" style={{ padding: "10px 22px", fontSize: 14 }} onClick={() => setShowAdd(true)}>+ Add Client</button>
       </div>
+      <div className="card" style={{ marginBottom: 20 }}>
+  <div className="card-title">
+    📬 Monday Messages
+    <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>— send to all clients at once</span>
+  </div>
+  <MondayMessagesSection
+    clients={clients}
+    coachUid={coachUid}
+    db={db}
+    doc={doc}
+    updateDoc={updateDoc}
+    collection={collection}
+    addDoc={addDoc}
+    getDocs={getDocs}
+    query={query}
+    where={where}
+    serverTimestamp={serverTimestamp}
+    toast={toast}
+  />
+</div>
       {clients.length === 0
         ? <div className="card"><div className="empty"><span className="empty-icon">👥</span><div className="empty-title">No clients yet</div><button className="btn btn-p" onClick={() => setShowAdd(true)}>+ Add First Client</button></div></div>
         : <div className="card" style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
