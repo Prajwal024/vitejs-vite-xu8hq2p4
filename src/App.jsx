@@ -2075,17 +2075,45 @@ const [compareSelections, setCompareSelections] = useState([]);
   if (tab === "photos") {
     const currentWeek = d.week || 1;
     const clientPhotos = d.photos || [];
-
-    const weeksWithPhotos = [...new Set(clientPhotos.map(p => p.week || 1))];
-    if (!weeksWithPhotos.includes(currentWeek)) weeksWithPhotos.push(currentWeek);
-    weeksWithPhotos.sort((a, b) => b - a);
-
-    const getPhoto = (week, pose) =>
-      clientPhotos
-        .filter(p => p.week === week && p.pose === pose)
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0];
-
-    const uploadPosePhoto = async (week, pose, file) => {
+  
+    // Group: week → date → pose
+    const grouped = {};
+    clientPhotos.forEach(p => {
+      const wk = p.week || 1;
+      const dt = p.date || new Date().toLocaleDateString("en-IN");
+      if (!grouped[wk]) grouped[wk] = {};
+      if (!grouped[wk][dt]) grouped[wk][dt] = {};
+      const pose = p.pose || "Other";
+      if (!grouped[wk][dt][pose]) grouped[wk][dt][pose] = [];
+      grouped[wk][dt][pose].push(p);
+    });
+  
+    // Weeks sorted descending
+    const weeks = [...new Set(clientPhotos.map(p => p.week || 1))];
+    if (!weeks.includes(currentWeek)) weeks.push(currentWeek);
+    weeks.sort((a, b) => b - a);
+  
+    // Today's date string
+    const todayStr = new Date().toLocaleDateString("en-IN");
+  
+    // Get latest date that has any upload for current week
+    const currentWeekDates = Object.keys(grouped[currentWeek] || {});
+    const latestDate = currentWeekDates.length > 0
+      ? currentWeekDates.sort((a, b) => {
+          const parse = s => { const [dd, mm, yy] = s.split("/"); return new Date(`${yy}-${mm}-${dd}`); };
+          return parse(b) - parse(a);
+        })[0]
+      : null;
+  
+    // The "active upload date" = today if today has no uploads yet OR today is already there
+    // Upload always goes to today's date
+    const uploadDate = todayStr;
+  
+    const getPhoto = (week, date, pose) => {
+      return ((grouped[week] || {})[date] || {})[pose]?.[0] || null;
+    };
+  
+    const uploadPosePhoto = async (week, date, pose, file) => {
       if (!file) return;
       if (file.size / (1024 * 1024) > 25) { toast(file.name + " too large (max 25MB)", "error"); return; }
       setUploading(true); setUploadPct(0);
@@ -2098,31 +2126,29 @@ const [compareSelections, setCompareSelections] = useState([]);
           pose,
           week,
           weekLabel: "Week " + week,
-          date: new Date().toLocaleDateString("en-IN"),
+          date,
           timestamp: new Date().toISOString(),
         };
         await updateDoc(doc(db, "clients", uid), { photos: [...clientPhotos, newPhoto] });
-        toast(`${pose} pose uploaded!`, "success");
+        toast(`${pose} uploaded!`, "success");
       } catch (err) { toast("Upload failed: " + err.message, "error"); }
       setUploading(false);
     };
-
-    const deletePosePhoto = async (week, pose) => {
+  
+    const deletePosePhoto = async (photo) => {
       if (!window.confirm("Delete this photo?")) return;
-      const photo = getPhoto(week, pose);
-      if (!photo) return;
       await updateDoc(doc(db, "clients", uid), {
-        photos: clientPhotos.filter(p => !(p.week === week && p.pose === pose && p.timestamp === photo.timestamp))
+        photos: clientPhotos.filter(p => p.timestamp !== photo.timestamp)
       });
       toast("Deleted.", "success");
     };
-
+  
     return (
       <div className="page">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
           <div style={{ fontFamily: "'Outfit',sans-serif", fontSize: 22, fontWeight: 800 }}>Progress Photos</div>
         </div>
-
+  
         {uploading && (
           <div style={{ position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)", background: "var(--s1)", border: "1px solid var(--green-b)", borderRadius: 14, padding: "14px 22px", zIndex: 500, display: "flex", alignItems: "center", gap: 14, boxShadow: "0 8px 32px rgba(0,0,0,.5)", minWidth: 260, animation: "bounceIn .3s ease" }}>
             <div style={{ width: 36, height: 36, borderRadius: "50%", border: "3px solid var(--border)", borderTopColor: "var(--green)", animation: "sp .8s linear infinite", flexShrink: 0 }} />
@@ -2132,67 +2158,105 @@ const [compareSelections, setCompareSelections] = useState([]);
             </div>
           </div>
         )}
-
+  
         <div style={{ background: "rgba(59,130,246,.08)", border: "1px solid rgba(59,130,246,.25)", borderRadius: 12, padding: "10px 14px", marginBottom: 16, fontSize: 12, color: "var(--muted2)" }}>
-          💡 Upload all 5 pose photos each week. Tap a photo to view full size.
+          💡 Upload all 5 poses. Each day you upload creates a new date box inside your week.
         </div>
-
-        {weeksWithPhotos.map(week => (
-          <div key={week} className="card" style={{ marginBottom: 16 }}>
-            <div className="card-title">
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: week === currentWeek ? "var(--green-bg)" : "var(--s2)", border: "1.5px solid " + (week === currentWeek ? "var(--green-b)" : "var(--border)"), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: week === currentWeek ? "var(--green)" : "var(--muted2)" }}>W{week}</div>
-                <span>Week {week}</span>
-                {week === currentWeek && <span className="bdg bdg-g">Current</span>}
+  
+        {/* WEEKS */}
+        {weeks.map(week => {
+          const dateMap = grouped[week] || {};
+          // All dates for this week, sorted newest first
+          const dates = Object.keys(dateMap).sort((a, b) => {
+            const parse = s => { const [dd, mm, yy] = s.split("/"); return new Date(`${yy}-${mm}-${dd}`); };
+            return parse(b) - parse(a);
+          });
+  
+          // For current week: also show today if not in dates yet (so upload box appears)
+          const showDates = [...dates];
+          if (week === currentWeek && !showDates.includes(uploadDate)) {
+            showDates.unshift(uploadDate); // today first
+          }
+  
+          return (
+            <div key={week} style={{ marginBottom: 24 }}>
+              {/* Week header pill */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: week === currentWeek ? "var(--green-bg)" : "var(--s2)", border: "1.5px solid " + (week === currentWeek ? "var(--green-b)" : "var(--border)"), display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 12, color: week === currentWeek ? "var(--green)" : "var(--muted2)", flexShrink: 0 }}>W{week}</div>
+                <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18 }}>Week {week}</div>
+                {week === currentWeek && <span style={{ fontSize: 11, padding: "2px 10px", borderRadius: 20, background: "var(--green-bg)", color: "var(--green)", border: "1px solid var(--green-b)", fontWeight: 700 }}>Current</span>}
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>{dates.length} day{dates.length !== 1 ? "s" : ""}</span>
               </div>
-              <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 400 }}>
-                {POSES.filter(pose => getPhoto(week, pose.key)).length}/5 poses
-              </span>
-            </div>
-            <div className="pose-grid">
-              {POSES.map(pose => {
-                const photo = getPhoto(week, pose.key);
+  
+              {/* DATE boxes */}
+              {showDates.map(date => {
+                const poseMap = dateMap[date] || {};
+                const isToday = date === uploadDate;
+                const isCurrentWeek = week === currentWeek;
+                const canUpload = isToday && isCurrentWeek;
+                const dayPhotoCount = Object.values(poseMap).flat().length;
+  
                 return (
-                  <div key={pose.key}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6, textAlign: "center" }}>
-                      {pose.emoji} {pose.short}
-                      <div style={{ fontSize: 9, color: "var(--muted)", fontWeight: 400, textTransform: "none", marginTop: 1 }}>{pose.label}</div>
+                  <div key={date} style={{ background: "var(--s1)", border: "1.5px solid " + (canUpload ? "var(--green-b)" : "var(--border)"), borderRadius: 14, padding: 16, marginBottom: 10, marginLeft: 46, animation: "cardEntrance .4s ease" }}>
+                    {/* Date header */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: canUpload ? "var(--green)" : "var(--muted)", flexShrink: 0 }} />
+                      <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14 }}>{date}</div>
+                      <div style={{ fontSize: 10, color: "var(--green)", fontWeight: 700, background: "var(--green-bg)", padding: "2px 8px", borderRadius: 20, border: "1px solid var(--green-b)" }}>W{week}</div>
+                      {canUpload && <div style={{ fontSize: 10, color: "var(--blue)", fontWeight: 700, background: "rgba(59,130,246,.1)", padding: "2px 8px", borderRadius: 20, border: "1px solid rgba(59,130,246,.3)" }}>Today</div>}
+                      <div style={{ fontSize: 11, color: "var(--muted)", marginLeft: "auto" }}>{dayPhotoCount}/5 poses</div>
                     </div>
-                    {photo ? (
-                      <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "3/4", border: "2px solid var(--border)", cursor: "pointer" }}
-                        onClick={() => setViewMedia(photo)}>
-                        <img src={photo.url} alt={pose.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent,rgba(0,0,0,.7))", padding: "14px 6px 6px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-                          <span style={{ color: "#fff", fontSize: 9, fontWeight: 600 }}>{photo.date}</span>
-                          {week === currentWeek && (
-                            <button onClick={e => { e.stopPropagation(); deletePosePhoto(week, pose.key); }}
-                              style={{ background: "rgba(248,113,113,.85)", color: "#fff", border: "none", borderRadius: 6, padding: "2px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>✕</button>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <label style={{ display: "flex", flexDirection: "column", borderRadius: 10, aspectRatio: "3/4", border: "2px dashed var(--border2)", background: "var(--s2)", cursor: week === currentWeek ? "pointer" : "default", alignItems: "center", justifyContent: "center", gap: 4, opacity: week === currentWeek ? 1 : 0.4, transition: "all .2s" }}
-                        onMouseEnter={e => { if (week === currentWeek) e.currentTarget.style.borderColor = "var(--green)"; }}
-                        onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border2)"; }}>
-                        <input type="file" accept="image/*" style={{ display: "none" }} disabled={week !== currentWeek || uploading}
-                          onChange={e => { if (e.target.files[0]) uploadPosePhoto(week, pose.key, e.target.files[0]); e.target.value = ""; }} />
-                        <div style={{ fontSize: 20 }}>📷</div>
-                        <div style={{ fontSize: 9, color: week === currentWeek ? "var(--green)" : "var(--muted)", fontWeight: 700, textAlign: "center" }}>
-                          {week === currentWeek ? "Upload" : "No photo"}
-                        </div>
-                      </label>
-                    )}
+  
+                    {/* 5 Pose grid */}
+                    <div className="pose-grid">
+                      {POSES.map(pose => {
+                        const photo = getPhoto(week, date, pose.key);
+                        return (
+                          <div key={pose.key}>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5, textAlign: "center" }}>
+                              {pose.emoji} {pose.short}
+                              <div style={{ fontSize: 8, color: "var(--muted)", fontWeight: 400, textTransform: "none", marginTop: 1 }}>{pose.label}</div>
+                            </div>
+                            {photo ? (
+                              <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "3/4", border: "2px solid var(--border)", cursor: "pointer" }}
+                                onClick={() => setViewMedia(photo)}>
+                                <img src={photo.url} alt={pose.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent,rgba(0,0,0,.7))", padding: "14px 6px 6px", display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                                  <span style={{ color: "#fff", fontSize: 9, fontWeight: 600 }}>{photo.date}</span>
+                                  {canUpload && (
+                                    <button onClick={e => { e.stopPropagation(); deletePosePhoto(photo); }}
+                                      style={{ background: "rgba(248,113,113,.85)", color: "#fff", border: "none", borderRadius: 5, padding: "2px 6px", fontSize: 9, fontWeight: 700, cursor: "pointer" }}>✕</button>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <label style={{ display: "flex", flexDirection: "column", borderRadius: 10, aspectRatio: "3/4", border: "2px dashed " + (canUpload ? "var(--border2)" : "var(--border)"), background: "var(--s2)", cursor: canUpload ? "pointer" : "default", alignItems: "center", justifyContent: "center", gap: 4, opacity: canUpload ? 1 : 0.4, transition: "all .2s" }}
+                                onMouseEnter={e => { if (canUpload) e.currentTarget.style.borderColor = "var(--green)"; }}
+                                onMouseLeave={e => { if (canUpload) e.currentTarget.style.borderColor = "var(--border2)"; }}>
+                                <input type="file" accept="image/*" style={{ display: "none" }} disabled={!canUpload || uploading}
+                                  onChange={e => { if (e.target.files[0]) uploadPosePhoto(week, date, pose.key, e.target.files[0]); e.target.value = ""; }} />
+                                <div style={{ fontSize: 18 }}>{canUpload ? "📷" : "—"}</div>
+                                <div style={{ fontSize: 9, color: canUpload ? "var(--green)" : "var(--muted)", fontWeight: 700, textAlign: "center" }}>
+                                  {canUpload ? "Upload" : "No photo"}
+                                </div>
+                              </label>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}
             </div>
-          </div>
-        ))}
-
+          );
+        })}
+  
         {viewMedia && (
           <div className="ov" onClick={() => setViewMedia(null)}>
             <div style={{ maxWidth: 560, width: "100%" }}>
               <img src={viewMedia.url} alt="" style={{ width: "100%", borderRadius: 16 }} />
+              <div style={{ textAlign: "center", marginTop: 10, fontSize: 12, color: "#94a3b8" }}>{viewMedia.pose} · {viewMedia.date} · Week {viewMedia.week}</div>
             </div>
           </div>
         )}
