@@ -1960,7 +1960,7 @@ const [compareSelections, setCompareSelections] = useState([]);
         }
       </div>
     </div>
-  );;
+  );
 
   if (tab === "training") return <WorkoutFullscreen workout={workout} phase={d.phase} week={d.week} warmup={d.workoutWarmup || ""} cooldown={d.workoutCooldown || ""} onClose={() => setTab("home")} />;
 
