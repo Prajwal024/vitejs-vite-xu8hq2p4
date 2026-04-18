@@ -658,6 +658,223 @@ export function ClientProfilePanel({ d, onClose }) {
     </div>
   );
 }
+function ZoomablePhoto({ src, date, pose, week, slotColor }) {
+  const containerRef = useRef(null);
+  const imgRef = useRef(null);
+  const scale = useRef(1);
+  const panX = useRef(0);
+  const panY = useRef(0);
+  const lastDist = useRef(0);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartY = useRef(0);
+  const lastTap = useRef(0);
+  const [zoomLevel, setZoomLevel] = useState(1);
+
+  const MIN_SCALE = 1;
+  const MAX_SCALE = 5;
+
+  const applyTransform = () => {
+    if (!imgRef.current) return;
+    imgRef.current.style.transform = `translate(${panX.current}px, ${panY.current}px) scale(${scale.current})`;
+  };
+
+  const clampPan = () => {
+    if (!containerRef.current) return;
+    const cw = containerRef.current.offsetWidth;
+    const ch = containerRef.current.offsetHeight;
+    const maxPanX = (cw * (scale.current - 1)) / 2;
+    const maxPanY = (ch * (scale.current - 1)) / 2;
+    panX.current = Math.max(-maxPanX, Math.min(maxPanX, panX.current));
+    panY.current = Math.max(-maxPanY, Math.min(maxPanY, panY.current));
+  };
+
+  const resetZoom = () => {
+    scale.current = 1; panX.current = 0; panY.current = 0;
+    applyTransform(); setZoomLevel(1);
+  };
+
+  const zoomIn = () => {
+    scale.current = Math.min(MAX_SCALE, scale.current * 1.5);
+    clampPan(); applyTransform();
+    setZoomLevel(Math.round(scale.current * 10) / 10);
+  };
+
+  const zoomOut = () => {
+    scale.current = Math.max(MIN_SCALE, scale.current / 1.5);
+    if (scale.current <= MIN_SCALE) { panX.current = 0; panY.current = 0; }
+    clampPan(); applyTransform();
+    setZoomLevel(Math.round(scale.current * 10) / 10);
+  };
+
+  const onTouchStart = (e) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastDist.current = Math.sqrt(dx * dx + dy * dy);
+    } else if (e.touches.length === 1) {
+      isDragging.current = true;
+      dragStartX.current = e.touches[0].clientX - panX.current;
+      dragStartY.current = e.touches[0].clientY - panY.current;
+    }
+  };
+
+  const onTouchMove = (e) => {
+    e.preventDefault();
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (lastDist.current > 0) {
+        const delta = dist / lastDist.current;
+        scale.current = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale.current * delta));
+        clampPan(); applyTransform();
+        setZoomLevel(Math.round(scale.current * 10) / 10);
+      }
+      lastDist.current = dist;
+    } else if (e.touches.length === 1 && isDragging.current && scale.current > 1) {
+      panX.current = e.touches[0].clientX - dragStartX.current;
+      panY.current = e.touches[0].clientY - dragStartY.current;
+      clampPan(); applyTransform();
+    }
+  };
+
+  const onTouchEnd = (e) => {
+    if (e.touches.length < 2) lastDist.current = 0;
+    if (e.touches.length === 0) isDragging.current = false;
+    if (scale.current < MIN_SCALE + 0.05) resetZoom();
+    // Double tap
+    const now = Date.now();
+    if (now - lastTap.current < 280) {
+      if (scale.current > 1) { resetZoom(); }
+      else {
+        scale.current = 2.5;
+        if (containerRef.current && e.changedTouches[0]) {
+          const rect = containerRef.current.getBoundingClientRect();
+          const cx = e.changedTouches[0].clientX - rect.left - rect.width / 2;
+          const cy = e.changedTouches[0].clientY - rect.top - rect.height / 2;
+          panX.current = -cx * (scale.current - 1) / scale.current;
+          panY.current = -cy * (scale.current - 1) / scale.current;
+          clampPan();
+        }
+        applyTransform(); setZoomLevel(2.5);
+      }
+    }
+    lastTap.current = now;
+  };
+
+  const onMouseDown = (e) => {
+    if (scale.current <= 1) return;
+    isDragging.current = true;
+    dragStartX.current = e.clientX - panX.current;
+    dragStartY.current = e.clientY - panY.current;
+    if (containerRef.current) containerRef.current.style.cursor = "grabbing";
+  };
+
+  const onMouseMove = (e) => {
+    if (!isDragging.current || scale.current <= 1) return;
+    panX.current = e.clientX - dragStartX.current;
+    panY.current = e.clientY - dragStartY.current;
+    clampPan(); applyTransform();
+  };
+
+  const onMouseUp = () => {
+    isDragging.current = false;
+    if (containerRef.current) containerRef.current.style.cursor = scale.current > 1 ? "grab" : "default";
+  };
+
+  const onWheel = (e) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.85 : 1.15;
+    scale.current = Math.max(MIN_SCALE, Math.min(MAX_SCALE, scale.current * delta));
+    if (scale.current <= MIN_SCALE) { panX.current = 0; panY.current = 0; }
+    clampPan(); applyTransform();
+    setZoomLevel(Math.round(scale.current * 10) / 10);
+  };
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseUp}
+      style={{
+        flex: 1, position: "relative", minHeight: 0,
+        width: "100%", minWidth: 0,
+        background: "#000", overflow: "hidden",
+        cursor: "default",
+        userSelect: "none", WebkitUserSelect: "none",
+        touchAction: "none",
+      }}
+    >
+      <img
+        ref={imgRef}
+        src={src}
+        alt=""
+        draggable={false}
+        style={{
+          position: "absolute",
+          top: 0, left: 0,
+          width: "100%", height: "100%",
+          objectFit: "contain", display: "block",
+          transformOrigin: "center center",
+          transition: "none",
+          willChange: "transform",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Zoom buttons */}
+      <div style={{ position: "absolute", top: 10, right: 10, display: "flex", flexDirection: "column", gap: 4, zIndex: 10 }}>
+        <button onClick={zoomIn}
+          style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(0,0,0,.75)", border: "1px solid rgba(255,255,255,.2)", color: "#fff", fontSize: 20, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)" }}>＋</button>
+        <button onClick={zoomOut} disabled={zoomLevel <= 1}
+          style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(0,0,0,.75)", border: "1px solid rgba(255,255,255,.2)", color: zoomLevel <= 1 ? "rgba(255,255,255,.25)" : "#fff", fontSize: 20, fontWeight: 700, cursor: zoomLevel <= 1 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)" }}>－</button>
+        {zoomLevel > 1 && (
+          <button onClick={resetZoom}
+            style={{ width: 36, height: 36, borderRadius: 9, background: "rgba(0,0,0,.75)", border: "1px solid rgba(255,255,255,.2)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(8px)" }}>↺</button>
+        )}
+      </div>
+
+      {/* Zoom badge */}
+      {zoomLevel > 1 && (
+        <div style={{ position: "absolute", top: 10, left: 10, background: "rgba(0,0,0,.75)", backdropFilter: "blur(8px)", borderRadius: 8, padding: "4px 10px", fontSize: 12, fontWeight: 700, color: slotColor, border: "1px solid " + slotColor + "55" }}>
+          {zoomLevel}×
+        </div>
+      )}
+
+      {/* Hint */}
+      {zoomLevel === 1 && (
+        <div style={{ position: "absolute", bottom: 52, left: 0, right: 0, textAlign: "center", pointerEvents: "none" }}>
+          <div style={{ display: "inline-block", background: "rgba(0,0,0,.6)", backdropFilter: "blur(8px)", borderRadius: 20, padding: "4px 12px", fontSize: 10, color: "rgba(255,255,255,.45)", fontWeight: 600 }}>
+            Pinch or scroll to zoom · drag to pan
+          </div>
+        </div>
+      )}
+
+      {/* Info overlay */}
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent,rgba(0,0,0,.9))", padding: "28px 14px 14px", pointerEvents: "none" }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{date}</div>
+        {pose && <div style={{ fontSize: 11, color: slotColor, fontWeight: 700, marginTop: 3 }}>{pose}</div>}
+        <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 2 }}>Week {week || 1}</div>
+      </div>
+    </div>
+  );
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COACH MEDIA VIEW — sorted by date, per-pose compare
@@ -667,144 +884,218 @@ export function CoachMediaView({ sel, onDeletePhoto }) {
   const [compareMode, setCompareMode] = useState(false);
   const [compareA, setCompareA] = useState(null);
   const [compareB, setCompareB] = useState(null);
-  const [pickingFor, setPickingFor] = useState(null); // "A" or "B"
+  const [pickingFor, setPickingFor] = useState(null);
 
-  const photos = [...(sel.photos || [])]
-    .filter(p => p.url)
-    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  const photos = [...(sel.photos || [])].filter(p => p.url);
 
-  // Group by week
-  const byWeek = {};
+  // Group: week → date → pose photos
+  const grouped = {};
   photos.forEach(p => {
     const wk = p.week || 1;
-    if (!byWeek[wk]) byWeek[wk] = [];
-    byWeek[wk].push(p);
+    const dt = p.date || "Unknown date";
+    if (!grouped[wk]) grouped[wk] = {};
+    if (!grouped[wk][dt]) grouped[wk][dt] = {};
+    const pose = p.pose || "Other";
+    if (!grouped[wk][dt][pose]) grouped[wk][dt][pose] = [];
+    grouped[wk][dt][pose].push(p);
   });
-  const weeks = Object.keys(byWeek).map(Number).sort((a, b) => b - a);
 
-  const poseLabel = (p) => {
-    if (p.pose) return p.pose;
-    return null;
-  };
+  const weeks = Object.keys(grouped).map(Number).sort((a, b) => b - a);
 
   const poseColor = (pose) => {
-    const map = {
-      "Front": "#22c55e",
-      "Back": "#3b82f6",
-      "Left Side": "#a78bfa",
-      "Right Side": "#fb923c",
-      "Front Double Bicep": "#f87171",
-      "Back Double Bicep": "#fbbf24",
-      "Abs & Thigh": "#38bdf8",
-    };
+    const map = { "Front": "#22c55e", "Back": "#3b82f6", "Side": "#a78bfa", "Front Double Biceps": "#f87171", "Back Double Biceps": "#fbbf24" };
     return map[pose] || "#94a3b8";
   };
 
-  // Compare overlay
+  const allPhotos = [...photos].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+  // Compare mode
   if (compareMode) {
     return (
-      <div style={{ position: "fixed", inset: 0, background: "var(--bg)", zIndex: 400, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 400,
+        background: "#080d1a",
+        display: "flex", flexDirection: "column",
+        overflow: "hidden",
+        // Force GPU layer — prevents scroll/transform bleed from parent
+        transform: "translateZ(0)",
+        willChange: "transform",
+      }}>
         {/* Top bar */}
-        <div style={{ background: "rgba(8,13,26,.97)", borderBottom: "1px solid var(--border)", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 17 }}>📸 Compare Photos</div>
-          <button onClick={() => { setCompareMode(false); setCompareA(null); setCompareB(null); }}
-            style={{ background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px", color: "var(--text)", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>✕ Close</button>
-        </div>
-
-        {/* Two panels */}
-        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0, overflow: "hidden" }}>
-          {["A", "B"].map(slot => {
-            const photo = slot === "A" ? compareA : compareB;
-            return (
-              <div key={slot} style={{ display: "flex", flexDirection: "column", borderRight: slot === "A" ? "2px solid var(--border)" : "none", overflow: "hidden" }}>
-                {/* Slot header */}
-                <div style={{ padding: "10px 14px", background: "var(--s1)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: slot === "A" ? "var(--green)" : "var(--blue)" }}>
-                    {slot === "A" ? "📗 Photo A" : "📘 Photo B"}
-                  </div>
-                  <button onClick={() => slot === "A" ? setCompareA(null) : setCompareB(null)}
-                    style={{ background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 6, padding: "3px 10px", color: "var(--muted)", cursor: "pointer", fontSize: 12 }}>
-                    {photo ? "Change" : "Pick"}
-                  </button>
-                </div>
-
-                {photo ? (
-                  <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-                    <img src={photo.url} alt="" style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }} />
-                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "linear-gradient(transparent,rgba(0,0,0,.85))", padding: "20px 12px 12px" }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#fff" }}>{photo.date}</div>
-                      {photo.pose && <div style={{ fontSize: 11, color: poseColor(photo.pose), fontWeight: 700, marginTop: 2 }}>{photo.pose}</div>}
-                      <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 1 }}>Week {photo.week || 1}</div>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, background: "var(--s2)", padding: 24 }}>
-                    <div style={{ fontSize: 40 }}>🖼️</div>
-                    <div style={{ fontSize: 14, color: "var(--muted)", textAlign: "center" }}>Click a photo below to pick for slot {slot}</div>
-                    <button onClick={() => setPickingFor(slot)}
-                      style={{ background: slot === "A" ? "var(--green-bg)" : "rgba(59,130,246,.1)", border: "1px solid " + (slot === "A" ? "var(--green-b)" : "rgba(59,130,246,.3)"), borderRadius: 10, padding: "10px 20px", color: slot === "A" ? "var(--green)" : "var(--blue)", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
-                      + Select Photo {slot}
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Picker strip at bottom */}
-        <div style={{ background: "var(--s1)", borderTop: "1px solid var(--border)", padding: "10px 14px", flexShrink: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".06em" }}>
-            {pickingFor ? `Selecting for Photo ${pickingFor} — tap any photo` : "Tap a photo to compare · tap again to assign"}
+        <div style={{
+          background: "rgba(8,13,26,.98)", backdropFilter: "blur(16px)",
+          borderBottom: "1px solid var(--border)",
+          padding: "12px 16px", flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 17 }}>
+            📸 Compare Photos
           </div>
-          <div style={{ display: "flex", gap: 8, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 4 }}>
-            {photos.map((p, i) => (
-              <div key={i}
-                onClick={() => {
-                  if (pickingFor === "A") { setCompareA(p); setPickingFor("B"); }
-                  else if (pickingFor === "B") { setCompareB(p); setPickingFor(null); }
-                  else if (!compareA) { setCompareA(p); setPickingFor("B"); }
-                  else if (!compareB) { setCompareB(p); }
-                }}
-                style={{ flexShrink: 0, width: 72, height: 96, borderRadius: 8, overflow: "hidden", cursor: "pointer", border: "2px solid " + (compareA?.timestamp === p.timestamp ? "var(--green)" : compareB?.timestamp === p.timestamp ? "var(--blue)" : "var(--border)"), position: "relative", transition: "all .15s" }}>
-                <img src={p.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,.7)", padding: "3px 4px" }}>
-                  <div style={{ fontSize: 8, color: "#fff", fontWeight: 600 }}>{p.date}</div>
-                  {p.pose && <div style={{ fontSize: 8, color: poseColor(p.pose), fontWeight: 700 }}>{p.pose?.slice(0, 6)}</div>}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {(compareA || compareB) && (
+              <button onClick={() => { setCompareA(null); setCompareB(null); setPickingFor("A"); }}
+                style={{ background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px", color: "var(--muted)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                🔄 Reset
+              </button>
+            )}
+            <button onClick={() => { setCompareMode(false); setCompareA(null); setCompareB(null); setPickingFor(null); }}
+              style={{ background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 14px", color: "var(--text)", cursor: "pointer", fontWeight: 600, fontSize: 13 }}>
+              ✕ Close
+            </button>
+          </div>
+        </div>
+  
+        {/* Status bar */}
+        <div style={{
+          padding: "8px 16px", background: "var(--s1)",
+          borderBottom: "1px solid var(--border)", flexShrink: 0,
+          fontSize: 12, color: "var(--muted)", display: "flex", alignItems: "center", gap: 10
+        }}>
+          <span style={{ color: compareA ? "var(--green)" : "var(--muted)", fontWeight: 700 }}>
+            {compareA ? `A: ${compareA.date} · ${compareA.pose || "No pose"} · W${compareA.week || 1}` : "A: not selected"}
+          </span>
+          <span style={{ color: "var(--border2)" }}>vs</span>
+          <span style={{ color: compareB ? "var(--blue)" : "var(--muted)", fontWeight: 700 }}>
+            {compareB ? `B: ${compareB.date} · ${compareB.pose || "No pose"} · W${compareB.week || 1}` : "B: not selected"}
+          </span>
+          {pickingFor && (
+            <span style={{ marginLeft: "auto", color: pickingFor === "A" ? "var(--green)" : "var(--blue)", fontWeight: 700, fontSize: 11, background: pickingFor === "A" ? "var(--green-bg)" : "rgba(59,130,246,.1)", padding: "3px 10px", borderRadius: 20, border: "1px solid " + (pickingFor === "A" ? "var(--green-b)" : "rgba(59,130,246,.3)") }}>
+              👆 Tap a photo below to pick for {pickingFor}
+            </span>
+          )}
+        </div>
+  
+        {/* Two image panels */}
+<div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", minHeight: 0, overflow: "hidden" }}>
+  {["A", "B"].map(slot => {
+    const photo = slot === "A" ? compareA : compareB;
+    const slotColor = slot === "A" ? "var(--green)" : "var(--blue)";
+    const slotBorder = slot === "A" ? "var(--green-b)" : "rgba(59,130,246,.3)";
+    const slotBg = slot === "A" ? "var(--green-bg)" : "rgba(59,130,246,.1)";
+    return (
+      <div key={slot} style={{
+        display: "flex", flexDirection: "column",
+        borderRight: slot === "A" ? "2px solid var(--border)" : "none",
+        overflow: "hidden", minHeight: 0,
+      }}>
+        {/* Slot header */}
+        <div style={{
+          padding: "10px 14px", background: "var(--s1)",
+          borderBottom: "1px solid var(--border)",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          flexShrink: 0
+        }}>
+          <div style={{ fontWeight: 800, fontSize: 14, color: slotColor }}>
+            {slot === "A" ? "📗 Before" : "📘 After"}
+            <span style={{ fontSize: 11, fontWeight: 400, color: "var(--muted)", marginLeft: 6 }}>Photo {slot}</span>
+          </div>
+          <button
+            onClick={() => { slot === "A" ? setCompareA(null) : setCompareB(null); setPickingFor(slot); }}
+            style={{ background: slotBg, border: "1px solid " + slotBorder, borderRadius: 7, padding: "4px 12px", color: slotColor, cursor: "pointer", fontSize: 11, fontWeight: 700 }}>
+            {photo ? "↩ Change" : "＋ Pick"}
+          </button>
+        </div>
+
+        {/* Zoomable image or empty state */}
+        {photo ? (
+          <ZoomablePhoto src={photo.url} date={photo.date} pose={photo.pose} week={photo.week} slotColor={slotColor} />
+        ) : (
+          <div style={{
+            flex: 1, display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            gap: 14, background: "var(--s2)", padding: 24, minHeight: 0
+          }}>
+            <div style={{ fontSize: 48, opacity: 0.3 }}>🖼️</div>
+            <div style={{ fontSize: 14, color: "var(--muted)", textAlign: "center", fontWeight: 600 }}>
+              Select a photo from the strip below
+            </div>
+            <div style={{
+              padding: "8px 16px", borderRadius: 10,
+              background: slotBg, border: "1px solid " + slotBorder,
+              color: slotColor, fontSize: 12, fontWeight: 700
+            }}>Photo {slot} slot</div>
+          </div>
+        )}
+      </div>
+    );
+  })}
+</div>
+  
+        {/* Bottom photo strip */}
+        <div style={{
+          background: "var(--s1)", borderTop: "1px solid var(--border)",
+          padding: "12px 14px", flexShrink: 0
+        }}>
+          <div style={{
+            fontSize: 11, fontWeight: 700, color: "var(--muted2)",
+            marginBottom: 8, textTransform: "uppercase", letterSpacing: ".06em",
+            display: "flex", alignItems: "center", gap: 8
+          }}>
+            All Photos
+            <span style={{ fontWeight: 400, textTransform: "none", color: "var(--muted)" }}>
+              — tap to assign to {pickingFor ? `slot ${pickingFor}` : "a slot"}
+            </span>
+          </div>
+          <div style={{
+            display: "flex", gap: 8,
+            overflowX: "auto", WebkitOverflowScrolling: "touch",
+            paddingBottom: 4, scrollbarWidth: "thin",
+          }}>
+            {allPhotos.map((p, i) => {
+              const isA = compareA?.timestamp === p.timestamp;
+              const isB = compareB?.timestamp === p.timestamp;
+              return (
+                <div key={i}
+                  onClick={() => {
+                    if (pickingFor === "A") { setCompareA(p); setPickingFor("B"); }
+                    else if (pickingFor === "B") { setCompareB(p); setPickingFor(null); }
+                    else if (!compareA) { setCompareA(p); setPickingFor("B"); }
+                    else if (!compareB) { setCompareB(p); setPickingFor(null); }
+                    else { setCompareA(p); setPickingFor("B"); } // replace A if both filled
+                  }}
+                  style={{
+                    flexShrink: 0, width: 68, height: 90,
+                    borderRadius: 9, overflow: "hidden", cursor: "pointer",
+                    border: "2.5px solid " + (isA ? "var(--green)" : isB ? "var(--blue)" : "var(--border)"),
+                    position: "relative", transition: "all .15s",
+                    opacity: (!pickingFor || isA || isB) ? 1 : 0.7,
+                    transform: (isA || isB) ? "scale(1.06)" : "scale(1)",
+                    boxShadow: isA ? "0 0 0 2px rgba(34,197,94,.3)" : isB ? "0 0 0 2px rgba(59,130,246,.3)" : "none",
+                  }}>
+                  <img src={p.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  {/* Date + pose label */}
+                  <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,.75)", padding: "4px 4px 3px" }}>
+                    <div style={{ fontSize: 8, color: "#fff", fontWeight: 600, lineHeight: 1.3 }}>{p.date}</div>
+                    {p.pose && <div style={{ fontSize: 7, color: "#94a3b8", lineHeight: 1.2 }}>{p.pose?.slice(0, 8)}</div>}
+                  </div>
+                  {/* A/B badge */}
+                  {isA && <div style={{ position: "absolute", top: 3, left: 3, background: "var(--green)", borderRadius: 4, padding: "1px 5px", fontSize: 9, fontWeight: 800, color: "#fff" }}>A</div>}
+                  {isB && <div style={{ position: "absolute", top: 3, left: 3, background: "var(--blue)", borderRadius: 4, padding: "1px 5px", fontSize: 9, fontWeight: 800, color: "#fff" }}>B</div>}
+                  {/* Week badge */}
+                  <div style={{ position: "absolute", top: 3, right: 3, background: "rgba(0,0,0,.7)", borderRadius: 4, padding: "1px 4px", fontSize: 7, fontWeight: 700, color: "#94a3b8" }}>W{p.week || 1}</div>
                 </div>
-                {(compareA?.timestamp === p.timestamp) && <div style={{ position: "absolute", top: 3, left: 3, background: "var(--green)", borderRadius: 4, padding: "1px 5px", fontSize: 9, fontWeight: 800, color: "#fff" }}>A</div>}
-                {(compareB?.timestamp === p.timestamp) && <div style={{ position: "absolute", top: 3, left: 3, background: "var(--blue)", borderRadius: 4, padding: "1px 5px", fontSize: 9, fontWeight: 800, color: "#fff" }}>B</div>}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
     );
   }
 
-  // Normal grid view
   return (
     <div>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
         <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 17 }}>
-          Client Media <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 400 }}>({photos.length} files)</span>
+          Client Media <span style={{ fontSize: 13, color: "var(--muted)", fontWeight: 400 }}>({allPhotos.length} photos)</span>
         </div>
         <button onClick={() => { setCompareMode(true); setPickingFor("A"); }}
-          style={{ background: "rgba(59,130,246,.1)", border: "1px solid rgba(59,130,246,.3)", borderRadius: 10, padding: "8px 16px", color: "var(--blue)", fontWeight: 700, cursor: "pointer", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
+          style={{ background: "rgba(59,130,246,.1)", border: "1px solid rgba(59,130,246,.3)", borderRadius: 10, padding: "8px 16px", color: "var(--blue)", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>
           ⚖️ Compare Photos
         </button>
       </div>
 
-      {photos.length === 0 && (
-        <div style={{ textAlign: "center", padding: "48px 24px", color: "var(--muted)" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>📷</div>
-          <div style={{ fontWeight: 700, fontSize: 16 }}>No photos yet</div>
-          <div style={{ fontSize: 13, marginTop: 4 }}>Client hasn't uploaded any photos</div>
-        </div>
-      )}
-
-      {/* View media fullscreen */}
+      {/* Fullscreen view */}
       {viewMedia && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.95)", zIndex: 500, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}
           onClick={() => setViewMedia(null)}>
@@ -812,63 +1103,88 @@ export function CoachMediaView({ sel, onDeletePhoto }) {
           <div style={{ marginTop: 14, display: "flex", gap: 12, alignItems: "center" }}>
             {viewMedia.pose && <span style={{ padding: "4px 12px", borderRadius: 20, background: poseColor(viewMedia.pose) + "22", color: poseColor(viewMedia.pose), border: "1px solid " + poseColor(viewMedia.pose) + "55", fontWeight: 700, fontSize: 13 }}>{viewMedia.pose}</span>}
             <span style={{ color: "#94a3b8", fontSize: 13 }}>{viewMedia.date} · Week {viewMedia.week || 1}</span>
-            <button onClick={(e) => { e.stopPropagation(); setCompareA(viewMedia); setCompareMode(true); setPickingFor("B"); setViewMedia(null); }}
-              style={{ background: "rgba(59,130,246,.15)", border: "1px solid rgba(59,130,246,.4)", borderRadius: 8, padding: "6px 14px", color: "var(--blue)", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>⚖️ Compare this</button>
-            <button onClick={(e) => { e.stopPropagation(); onDeletePhoto(viewMedia); setViewMedia(null); }}
+            <button onClick={e => { e.stopPropagation(); setCompareA(viewMedia); setCompareMode(true); setPickingFor("B"); setViewMedia(null); }}
+              style={{ background: "rgba(59,130,246,.15)", border: "1px solid rgba(59,130,246,.4)", borderRadius: 8, padding: "6px 14px", color: "var(--blue)", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>⚖️ Compare</button>
+            <button onClick={e => { e.stopPropagation(); onDeletePhoto(viewMedia); setViewMedia(null); }}
               style={{ background: "rgba(248,113,113,.15)", border: "1px solid rgba(248,113,113,.4)", borderRadius: 8, padding: "6px 14px", color: "var(--red)", fontWeight: 700, cursor: "pointer", fontSize: 12 }}>🗑 Delete</button>
           </div>
           <div style={{ marginTop: 8, fontSize: 11, color: "#475569" }}>Tap anywhere to close</div>
         </div>
       )}
 
-      {/* Weeks */}
+      {allPhotos.length === 0 && (
+        <div style={{ textAlign: "center", padding: "48px 24px", color: "var(--muted)" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>📷</div>
+          <div style={{ fontWeight: 700, fontSize: 16 }}>No photos yet</div>
+        </div>
+      )}
+
+      {/* WEEKS */}
       {weeks.map(week => {
-        const weekPhotos = byWeek[week].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        const dateMap = grouped[week];
+        const dates = Object.keys(dateMap).sort((a, b) => {
+          // parse dd/mm/yyyy
+          const parse = s => { const [d, m, y] = s.split("/"); return new Date(`${y}-${m}-${d}`); };
+          return parse(b) - parse(a);
+        });
+
         return (
-          <div key={week} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, padding: "16px", marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--green-bg)", border: "1.5px solid var(--green-b)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 12, color: "var(--green)" }}>W{week}</div>
-                <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16 }}>Week {week}</div>
-              </div>
-              <span style={{ fontSize: 12, color: "var(--muted)" }}>{weekPhotos.length} files</span>
+          <div key={week} style={{ marginBottom: 24 }}>
+            {/* Week header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--green-bg)", border: "1.5px solid var(--green-b)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 13, color: "var(--green)", flexShrink: 0 }}>W{week}</div>
+              <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18 }}>Week {week}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)", marginLeft: 4 }}>{dates.length} day{dates.length !== 1 ? "s" : ""} · {Object.values(dateMap).reduce((a, d) => a + Object.values(d).flat().length, 0)} photos</div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
-              {weekPhotos.map((p, i) => {
-                const pose = poseLabel(p);
-                const color = poseColor(pose);
-                return (
-                  <div key={i}
-                    onClick={() => setViewMedia(p)}
-                    style={{ borderRadius: 10, overflow: "hidden", cursor: "pointer", border: "2px solid var(--border)", transition: "all .18s", position: "relative" }}
-                    onMouseEnter={e => { e.currentTarget.style.borderColor = color; e.currentTarget.style.transform = "scale(1.02)"; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.transform = "scale(1)"; }}>
-                    <div style={{ aspectRatio: "3/4", overflow: "hidden" }}>
-                      <img src={p.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    </div>
-                    {/* Pose badge */}
-                    {pose && (
-                      <div style={{ position: "absolute", top: 6, left: 6, background: color + "dd", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, color: "#fff", backdropFilter: "blur(4px)" }}>
-                        {pose}
-                      </div>
-                    )}
-                    {/* Compare button on hover */}
-                    <div style={{ position: "absolute", top: 6, right: 6 }}>
-                      <button
-                        onClick={e => { e.stopPropagation(); setCompareA(p); setCompareMode(true); setPickingFor("B"); }}
-                        style={{ background: "rgba(59,130,246,.85)", border: "none", borderRadius: 6, padding: "3px 7px", color: "#fff", fontSize: 10, fontWeight: 800, cursor: "pointer", backdropFilter: "blur(4px)" }}>
-                        ⚖️
-                      </button>
-                    </div>
-                    {/* Bottom info */}
-                    <div style={{ background: "linear-gradient(transparent,rgba(0,0,0,.8))", padding: "20px 8px 8px", position: "absolute", bottom: 0, left: 0, right: 0 }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "#fff" }}>{p.date}</div>
-                    </div>
+            {/* DATE boxes inside week */}
+            {dates.map(date => {
+              const poseMap = dateMap[date];
+              const dayPhotos = Object.values(poseMap).flat();
+
+              return (
+                <div key={date} style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, padding: 16, marginBottom: 12, marginLeft: 46 }}>
+                  {/* Date header */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--green)", flexShrink: 0 }} />
+                    <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 14, color: "var(--text)" }}>{date}</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginLeft: 4 }}>{dayPhotos.length} photo{dayPhotos.length !== 1 ? "s" : ""}</div>
+                    <div style={{ fontSize: 10, color: "var(--green)", fontWeight: 700, marginLeft: 4, background: "var(--green-bg)", padding: "2px 8px", borderRadius: 20, border: "1px solid var(--green-b)" }}>W{week}</div>
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* Pose grid for this date */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
+                    {POSES.map(pose => {
+                      const posePics = (poseMap[pose.key] || []).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                      const photo = posePics[0];
+                      const color = poseColor(pose.key);
+                      return (
+                        <div key={pose.key}>
+                          <div style={{ fontSize: 9, fontWeight: 700, color: "var(--muted2)", textTransform: "uppercase", letterSpacing: ".05em", marginBottom: 5, textAlign: "center" }}>
+                            {pose.emoji} {pose.short}
+                          </div>
+                          {photo ? (
+                            <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "3/4", border: "2px solid " + color + "55", cursor: "pointer" }}
+                              onClick={() => setViewMedia(photo)}>
+                              <img src={photo.url} alt={pose.label} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              <div style={{ position: "absolute", top: 4, left: 4, background: color + "dd", borderRadius: 5, padding: "2px 6px", fontSize: 9, fontWeight: 800, color: "#fff" }}>{pose.short}</div>
+                              <div style={{ position: "absolute", top: 4, right: 4 }}>
+                                <button onClick={e => { e.stopPropagation(); setCompareA(photo); setCompareMode(true); setPickingFor("B"); }}
+                                  style={{ background: "rgba(59,130,246,.85)", border: "none", borderRadius: 5, padding: "2px 6px", color: "#fff", fontSize: 9, fontWeight: 800, cursor: "pointer" }}>⚖️</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ borderRadius: 10, aspectRatio: "3/4", border: "2px dashed var(--border)", background: "var(--s2)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0.5 }}>
+                              <span style={{ fontSize: 16, color: "var(--muted)" }}>—</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         );
       })}
