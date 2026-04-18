@@ -3,6 +3,7 @@ import { doc, updateDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "./firebase";
 
+
 const CLOUDINARY_CLOUD_NAME = "dputo3zsh";
 const CLOUDINARY_UPLOAD_PRESET = "coachkit_upload";
 
@@ -2403,6 +2404,357 @@ Response format - respond ONLY with this JSON (no markdown, no extra text):
     </div>
   );
 }
+// ═══════════════════════════════════════════════════════════════════════════════
+// MONDAY MESSAGES + SUNDAY REPORTS SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function MondayMessagesSection({ clients, coachUid, db, doc, updateDoc, collection, addDoc, getDocs, query, where, serverTimestamp, toast }) {
+  const [messages, setMessages] = useState({});
+  const [generating, setGenerating] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [flaggedIdx, setFlaggedIdx] = useState(0);
+  const [editingMsg, setEditingMsg] = useState(null);
+  const [view, setView] = useState("dashboard"); // "dashboard" | "flagged"
+  const today = new Date().toLocaleDateString("en-IN");
+  const todayFull = new Date().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+
+  const callGroq = async (prompt) => {
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY;
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: "llama-3.1-8b-instant", max_tokens: 200, messages: [{ role: "user", content: prompt }] })
+    });
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim();
+  };
+
+  const buildPrompt = (c) => {
+    const checkins = c.weeklyCheckins || [];
+    const latest = [...checkins].sort((a,b) => (b.week||0)-(a.week||0))[0];
+    const prev = checkins[checkins.length - 2];
+    const weightChange = latest?.weight && prev?.weight ? (prev.weight - latest.weight).toFixed(1) : null;
+    const workout = (() => {
+      const days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const day = days[new Date().getDay()];
+      const plan = (c.workoutPlan||[]).find(d => d.day === day);
+      return plan?.type === "Rest" ? "Rest Day" : plan ? `${plan.type} Day` : "Training Day";
+    })();
+    return `You are a motivational fitness coach writing a Monday check-in message. Write a SHORT personal message (MAX 80 words).
+
+Client: ${c.name?.split(" ")[0]}
+Goal: ${c.primaryGoal || "Fitness"}
+Phase: ${c.phase} — Week ${c.week}
+Today's workout: ${workout}
+Last weight: ${latest?.weight || "not logged"}kg
+Weight change: ${weightChange ? (weightChange > 0 ? `-${weightChange}kg lost` : `+${Math.abs(weightChange)}kg gained`) : "tracking"}
+Sleep quality: ${latest?.sleepQuality || "N/A"}/10
+Training adherence: ${latest?.trainingAdherence || "N/A"}/10
+Last win: ${latest?.wins || "none logged"}
+
+Rules: Be personal, specific, energetic. Max 80 words. End with an emoji. Never be generic.
+Write ONLY the message, no quotes, no label:`;
+  };
+
+  const safetyCheck = (msg, client) => {
+    const checks = {
+      hasName: msg.toLowerCase().includes(client.name?.split(" ")[0].toLowerCase()),
+      notTooLong: msg.split(" ").length <= 100,
+      hasPositiveTone: !msg.toLowerCase().includes("fail") && !msg.toLowerCase().includes("bad"),
+      noExtremeValues: true,
+    };
+    const passed = Object.values(checks).filter(Boolean).length;
+    return passed >= 3 ? "safe" : "flagged";
+  };
+
+  const generateAll = async () => {
+    setGenerating(true);
+    const results = {};
+    for (const client of clients) {
+      if (!client.id) continue;
+      try {
+        const checkins = client.weeklyCheckins || [];
+        const latest = [...checkins].sort((a,b)=>(b.week||0)-(a.week||0))[0];
+        
+        if (checkins.length === 0) {
+          results[client.id] = { status: "missing", client, message: "" };
+          continue;
+        }
+
+        const weightHistory = client.weightHistory || [];
+        const lastTwo = weightHistory.slice(-2);
+        const weightJump = lastTwo.length === 2 ? Math.abs(lastTwo[1].weight - lastTwo[0].weight) > 3 : false;
+
+        const msg = await callGroq(buildPrompt(client));
+        if (!msg) { results[client.id] = { status: "missing", client, message: "" }; continue; }
+
+        const status = weightJump ? "flagged" : safetyCheck(msg, client);
+        results[client.id] = { status, client, message: msg, flagReason: weightJump ? `Weight jumped ${Math.abs(lastTwo[1].weight - lastTwo[0].weight).toFixed(1)}kg` : null };
+      } catch (e) {
+        results[client.id] = { status: "missing", client, message: "" };
+      }
+    }
+    setMessages(results);
+    setGenerating(false);
+  };
+
+  const sendAll = async () => {
+    const safeOnes = Object.values(messages).filter(m => m.status === "safe");
+    if (safeOnes.length === 0) return;
+    setSending(true);
+    for (const { client, message } of safeOnes) {
+      await updateDoc(doc(db, "clients", client.id), {
+        coachMessage: message,
+        lastMondayMessage: message,
+        lastMondayMessageDate: today,
+      });
+      await addDoc(collection(db, "clients", client.id, "messages"), {
+        type: "monday_checkin",
+        content: message,
+        sentAt: serverTimestamp(),
+        isRead: false,
+        readAt: null,
+      });
+    }
+    toast(`${safeOnes.length} messages sent!`, "success");
+    setSending(false);
+  };
+
+  const sendSingle = async (clientId) => {
+    const m = messages[clientId];
+    if (!m) return;
+    await updateDoc(doc(db, "clients", clientId), {
+      coachMessage: m.message,
+      lastMondayMessage: m.message,
+      lastMondayMessageDate: today,
+    });
+    await addDoc(collection(db, "clients", clientId, "messages"), {
+      type: "monday_checkin", content: m.message, sentAt: serverTimestamp(), isRead: false, readAt: null,
+    });
+    setMessages(prev => ({ ...prev, [clientId]: { ...prev[clientId], sent: true } }));
+    toast(`Sent to ${m.client.name}!`, "success");
+  };
+
+  const safe = Object.values(messages).filter(m => m.status === "safe");
+  const flagged = Object.values(messages).filter(m => m.status === "flagged");
+  const missing = Object.values(messages).filter(m => m.status === "missing");
+  const hasGenerated = Object.keys(messages).length > 0;
+
+  if (view === "flagged") {
+    const fl = flagged[flaggedIdx];
+    if (!fl) { setView("dashboard"); return null; }
+    return (
+      <div style={{ maxWidth: 600, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+          <button className="btn btn-s btn-sm" onClick={() => setView("dashboard")}>← Back</button>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16 }}>
+            ⚠️ Review Flagged — {flaggedIdx + 1} of {flagged.length}
+          </div>
+        </div>
+        <div style={{ background: "rgba(251,191,36,.08)", border: "1px solid rgba(251,191,36,.3)", borderRadius: 16, padding: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--green-bg)", border: "1.5px solid var(--green-b)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 14, color: "var(--green)" }}>
+              {fl.client.name?.split(" ").map(w=>w[0]).join("").slice(0,2)}
+            </div>
+            <div>
+              <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16 }}>{fl.client.name}</div>
+              {fl.flagReason && <div style={{ fontSize: 11, color: "var(--yellow)", fontWeight: 600 }}>⚠️ {fl.flagReason}</div>}
+            </div>
+          </div>
+          <textarea
+            className="fta"
+            style={{ minHeight: 140, fontSize: 14, lineHeight: 1.7, borderColor: "rgba(251,191,36,.4)", background: "rgba(251,191,36,.04)", marginBottom: 14 }}
+            value={editingMsg !== null ? editingMsg : fl.message}
+            onChange={e => setEditingMsg(e.target.value)}
+          />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-p" style={{ flex: 1 }} onClick={async () => {
+              const finalMsg = editingMsg !== null ? editingMsg : fl.message;
+              setMessages(prev => ({ ...prev, [fl.client.id]: { ...prev[fl.client.id], message: finalMsg, status: "safe" } }));
+              await sendSingle(fl.client.id);
+              setEditingMsg(null);
+              if (flaggedIdx < flagged.length - 1) setFlaggedIdx(i => i + 1);
+              else setView("dashboard");
+            }}>Send ✅</button>
+            <button className="btn btn-s" onClick={() => {
+              setEditingMsg(null);
+              if (flaggedIdx < flagged.length - 1) setFlaggedIdx(i => i + 1);
+              else setView("dashboard");
+            }}>Skip ⏭️</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ background: "linear-gradient(135deg,rgba(34,197,94,.1),rgba(59,130,246,.06))", border: "1px solid var(--green-b)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
+        <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 18, marginBottom: 4 }}>
+          📬 Monday Messages
+        </div>
+        <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 16 }}>{todayFull} · {clients.length} clients</div>
+
+        {!hasGenerated ? (
+          <button className="btn btn-p" style={{ width: "100%", padding: 14, fontSize: 15 }} onClick={generateAll} disabled={generating}>
+            {generating ? "🤖 Generating AI messages for all clients..." : "🤖 Generate All Messages"}
+          </button>
+        ) : (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, marginBottom: 16 }}>
+              {[
+                ["✅ Safe to send", safe.length, "var(--green)", "rgba(34,197,94,.1)", "rgba(34,197,94,.3)"],
+                ["⚠️ Needs review", flagged.length, "var(--yellow)", "rgba(251,191,36,.1)", "rgba(251,191,36,.3)"],
+                ["❌ Missing data", missing.length, "var(--red)", "rgba(248,113,113,.1)", "rgba(248,113,113,.3)"],
+              ].map(([label, count, color, bg, border]) => (
+                <div key={label} style={{ background: bg, border: "1px solid " + border, borderRadius: 12, padding: "14px 10px", textAlign: "center" }}>
+                  <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 900, fontSize: 28, color }}>{count}</div>
+                  <div style={{ fontSize: 11, color, fontWeight: 700, marginTop: 3 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+              <button className="btn btn-p" style={{ flex: 1, padding: 12, fontSize: 14 }} onClick={sendAll} disabled={sending || safe.length === 0}>
+                {sending ? "Sending..." : `🚀 Send ${safe.length} Safe Messages Now`}
+              </button>
+              {flagged.length > 0 && (
+                <button className="btn btn-warn" style={{ padding: "10px 18px", fontSize: 13 }} onClick={() => { setView("flagged"); setFlaggedIdx(0); setEditingMsg(null); }}>
+                  Review Flagged →
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {hasGenerated && (
+        <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13 }}>
+            All Generated Messages
+          </div>
+          {Object.values(messages).map((m, i) => {
+            const statusColor = m.status === "safe" ? "var(--green)" : m.status === "flagged" ? "var(--yellow)" : "var(--red)";
+            const statusLabel = m.status === "safe" ? "✅ Safe" : m.status === "flagged" ? "⚠️ Review" : "❌ Missing";
+            return (
+              <div key={m.client.id} style={{ padding: "14px 16px", borderBottom: i < Object.values(messages).length - 1 ? "1px solid var(--border)" : "none" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: m.message ? 8 : 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, flex: 1 }}>{m.client.name}</div>
+                  <span style={{ padding: "2px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, background: statusColor + "18", color: statusColor, border: "1px solid " + statusColor + "44" }}>
+                    {statusLabel}
+                  </span>
+                  {m.message && !m.sent && (
+                    <button className="btn btn-s btn-xs" onClick={() => sendSingle(m.client.id)}>Send</button>
+                  )}
+                  {m.sent && <span style={{ fontSize: 11, color: "var(--green)", fontWeight: 700 }}>✓ Sent</span>}
+                </div>
+                {m.message && (
+                  <div style={{ fontSize: 13, color: "var(--muted2)", lineHeight: 1.6, background: "var(--s2)", borderRadius: 9, padding: "10px 12px", border: "1px solid var(--border)" }}>
+                    {m.message}
+                  </div>
+                )}
+                {m.flagReason && (
+                  <div style={{ fontSize: 11, color: "var(--yellow)", marginTop: 5, fontWeight: 600 }}>⚠️ {m.flagReason}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function ClientMessageInbox({ uid, clientName, db, collection, onSnapshot, doc, updateDoc }) {
+  const [messages, setMessages] = useState([]);
+  const [openMsg, setOpenMsg] = useState(null);
+
+  useEffect(() => {
+    if (!uid) return;
+    const q = collection(db, "clients", uid, "messages");
+    return onSnapshot(q, snap => {
+      const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => new Date(b.sentAt?.toDate?.() || 0) - new Date(a.sentAt?.toDate?.() || 0));
+      setMessages(msgs);
+    });
+  }, [uid]);
+
+  const unread = messages.filter(m => !m.isRead);
+  const markRead = async (msg) => {
+    if (msg.isRead) return;
+    await updateDoc(doc(db, "clients", uid, "messages", msg.id), { isRead: true, readAt: new Date().toISOString() });
+  };
+
+  if (openMsg) return (
+    <div style={{ animation: "fadeUp .3s ease" }}>
+      <button className="btn btn-s btn-sm" style={{ marginBottom: 16 }} onClick={() => setOpenMsg(null)}>← Back</button>
+      <div style={{ background: "var(--s1)", border: "1px solid var(--green-b)", borderRadius: 16, padding: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+          <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--green-bg)", border: "2px solid var(--green-b)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>👨‍💼</div>
+          <div>
+            <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 16 }}>Coach Ankit</div>
+            <div style={{ fontSize: 11, color: "var(--muted)" }}>
+              {openMsg.sentAt?.toDate ? openMsg.sentAt.toDate().toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : ""}
+            </div>
+          </div>
+        </div>
+        <div style={{ fontSize: 15, lineHeight: 1.8, color: "var(--text)", whiteSpace: "pre-wrap", marginBottom: 24 }}>
+          {openMsg.content}
+        </div>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button className="btn btn-p" style={{ flex: 1 }} onClick={() => setOpenMsg(null)}>👍 Got it!</button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      {unread.length > 0 && (
+        <div style={{ background: "linear-gradient(135deg,rgba(34,197,94,.15),rgba(167,139,250,.08))", border: "2px solid var(--green)", borderRadius: 16, padding: 20, marginBottom: 16, cursor: "pointer", animation: "glowPulse 2s ease infinite" }}
+          onClick={() => { const msg = unread[0]; markRead(msg); setOpenMsg(msg); }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <span style={{ fontSize: 24 }}>✨</span>
+            <div>
+              <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15, color: "var(--green)" }}>NEW FROM YOUR COACH</div>
+              <div style={{ fontSize: 12, color: "var(--muted2)" }}>Monday Check-in Message 💪</div>
+            </div>
+            <span style={{ marginLeft: "auto", fontSize: 18 }}>→</span>
+          </div>
+          <div style={{ fontSize: 13, color: "var(--muted2)", lineHeight: 1.6, background: "rgba(0,0,0,.2)", borderRadius: 10, padding: "10px 14px" }}>
+            {unread[0].content?.slice(0, 100)}...
+          </div>
+          <div style={{ fontSize: 11, color: "var(--green)", fontWeight: 700, marginTop: 10, textAlign: "center" }}>Tap to read →</div>
+        </div>
+      )}
+
+      {messages.length > 0 && (
+        <div style={{ background: "var(--s1)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", fontFamily: "'Outfit',sans-serif", fontWeight: 700, fontSize: 13 }}>
+            📬 Messages from Coach
+          </div>
+          {messages.map((msg, i) => (
+            <div key={msg.id} style={{ padding: "14px 16px", borderBottom: i < messages.length - 1 ? "1px solid var(--border)" : "none", cursor: "pointer", background: !msg.isRead ? "rgba(34,197,94,.03)" : "transparent" }}
+              onClick={() => { markRead(msg); setOpenMsg(msg); }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {!msg.isRead && <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--green)", flexShrink: 0 }} />}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: !msg.isRead ? 700 : 600, fontSize: 13 }}>
+                    {msg.type === "monday_checkin" ? "Monday Check-in 💪" : msg.type === "sunday_report" ? "Sunday Progress Report 📊" : "Message from Coach"}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                    {msg.sentAt?.toDate ? msg.sentAt.toDate().toLocaleDateString("en-IN") : ""}
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>→</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HOW TO INTEGRATE — READ THIS CAREFULLY
