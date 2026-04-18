@@ -151,7 +151,7 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 .signout:hover{border-color:var(--red);color:var(--red)}
 
 /* ── PAGE / CARD ── */
-.page{max-width:960px;margin:0 auto;padding:24px 16px calc(80px + env(safe-area-inset-bottom));animation:fadeUp .4s ease;padding-top:max(24px, 16px)}
+.page{max-width:960px;margin:0 auto;padding:24px 16px calc(80px + env(safe-area-inset-bottom));animation:fadeUp .4s ease;padding-top:max(24px, 16px);min-height:100dvh;box-sizing:border-box;}
 .card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:18px;box-shadow:var(--sh);transition:transform .2s,box-shadow .2s,border-color .2s;animation:cardEntrance .4s ease}
 .card:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.5);border-color:var(--border2)}
 .card-title{font-family:'Outfit',sans-serif;font-weight:700;font-size:15px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
@@ -402,6 +402,9 @@ body{font-family:'DM Sans',sans-serif;background:#080d1a;color:#e2e8f0;-webkit-f
 
 /* ── REPLACE existing @media(max-width:700px) block with this ── */
 @media(max-width:700px){
+  
+    input, select, textarea { font-size: 16px !important; }
+  }
   .page{padding:16px 12px 80px}
   .g4{grid-template-columns:1fr 1fr}
   .g3{grid-template-columns:1fr 1fr}
@@ -696,40 +699,68 @@ function ChatFullHeight({ currentUid, otherUid, currentName, otherName }) {
       </div>
 
       {/* Input — always pinned to bottom, above keyboard */}
-      <div style={{
-        display: "flex", gap: 8,
-        padding: "10px 12px",
-        paddingBottom: "max(12px, env(safe-area-inset-bottom))",
-        borderTop: "1px solid var(--border)",
-        background: "rgba(8,13,26,.98)",
-        backdropFilter: "blur(12px)",
-        flexShrink: 0,
-      }}>
-        <input
-          ref={inputRef}
-          className="fi"
-          style={{ 
-            flex: 1, fontSize: 15, 
-            borderRadius: 24, 
-            padding: "11px 18px",
-            background: "var(--s2)",
-          }}
-          placeholder={`Message ${otherName}...`}
-          value={text}
-          onChange={e => setText(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
-          // Don't zoom on iOS
-          inputMode="text"
-        />
-        <button
-          className="btn btn-p"
-          onClick={sendMsg}
-          disabled={sending || !text.trim()}
-          style={{ borderRadius: 24, padding: "11px 20px", flexShrink: 0, fontSize: 14 }}
-        >
-          {sending ? "..." : "Send"}
-        </button>
-      </div>
+     {/* Input — pinned above keyboard */}
+<div style={{
+  display: "flex",
+  gap: 8,
+  padding: "10px 12px",
+  // KEY FIX: this moves input above keyboard on iOS
+  paddingBottom: "max(12px, env(safe-area-inset-bottom))",
+  borderTop: "1px solid var(--border)",
+  background: "rgba(8,13,26,.98)",
+  backdropFilter: "blur(12px)",
+  flexShrink: 0,
+  // Prevent zoom on iOS when tapping input
+  fontSize: 16,
+}}>
+  <input
+    ref={inputRef}
+    className="fi"
+    style={{
+      flex: 1,
+      // CRITICAL: font-size 16px prevents iOS zoom
+      fontSize: 16,
+      borderRadius: 24,
+      padding: "11px 18px",
+      background: "var(--s2)",
+    }}
+    placeholder={`Message ${otherName}...`}
+    value={text}
+    onChange={e => setText(e.target.value)}
+    onKeyDown={e => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMsg();
+      }
+    }}
+    inputMode="text"
+    autoComplete="off"
+    // Prevent iOS zoom
+    style={{
+      flex: 1,
+      fontSize: 16,
+      borderRadius: 24,
+      padding: "11px 18px",
+      background: "var(--s2)",
+      border: "1.5px solid var(--border)",
+      color: "var(--text)",
+      outline: "none",
+    }}
+  />
+  <button
+    className="btn btn-p"
+    onClick={sendMsg}
+    disabled={sending || !text.trim()}
+    style={{
+      borderRadius: 24,
+      padding: "11px 20px",
+      flexShrink: 0,
+      fontSize: 14,
+    }}
+  >
+    {sending ? "..." : "Send"}
+  </button>
+</div>
     </div>
   );
 }
@@ -1926,27 +1957,44 @@ const [compareSelections, setCompareSelections] = useState([]);
 
   if (tab === "chat") return (
     <div style={{
-      position: "fixed", inset: 0, zIndex: 150,
-      display: "flex", flexDirection: "column",
+      position: "fixed",
+      top: 0, left: 0, right: 0, bottom: 0,
+      zIndex: 150,
+      display: "flex",
+      flexDirection: "column",
       background: "var(--bg)",
+      // KEY: use dvh so it shrinks when keyboard opens
+      height: "100dvh",
       paddingTop: "env(safe-area-inset-top)",
     }}>
       {/* Header */}
       <div style={{
         background: "rgba(8,13,26,.97)",
         borderBottom: "1px solid var(--border)",
-        padding: "10px 16px", flexShrink: 0,
-        display: "flex", alignItems: "center", gap: 10, minHeight: 52,
+        padding: "10px 16px",
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        minHeight: 52,
       }}>
         <button className="btn btn-s btn-sm" onClick={() => setTab("home")}>← Back</button>
         <div>
-          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15 }}>Chat with Coach Ankit</div>
+          <div style={{ fontFamily: "'Outfit',sans-serif", fontWeight: 800, fontSize: 15 }}>
+            Chat with Coach Ankit
+          </div>
           <div style={{ fontSize: 11, color: "var(--muted)" }}>Messages sync in real-time</div>
         </div>
       </div>
   
-      {/* Chat — minHeight:0 is the key fix */}
-      <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      {/* Chat body — flex:1 + minHeight:0 is critical */}
+      <div style={{
+        flex: 1,
+        minHeight: 0,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}>
         {coachId
           ? <ChatFullHeight
               currentUid={uid}
@@ -1954,7 +2002,13 @@ const [compareSelections, setCompareSelections] = useState([]);
               currentName={d.name || "Client"}
               otherName="Coach Ankit"
             />
-          : <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)" }}>
+          : <div style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--muted)",
+            }}>
               Chat not available. Contact your coach.
             </div>
         }
