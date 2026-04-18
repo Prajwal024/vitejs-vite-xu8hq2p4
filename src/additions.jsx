@@ -88,14 +88,16 @@ export const CSS_ADDITIONS = `
 /* ── MY PROFILE PAGE — mobile-safe ── */
 .profile-page-outer{
   display:flex;flex-direction:column;
-  height:calc(100dvh - 58px - env(safe-area-inset-bottom));
+  height:100dvh;
+  padding-top:env(safe-area-inset-top);
   overflow:hidden;
 }
 .profile-page-scroll{
   flex:1;
   overflow-y:auto;
   -webkit-overflow-scrolling:touch;
-  padding:20px 16px calc(80px + env(safe-area-inset-bottom));
+  padding:20px 16px calc(100px + env(safe-area-inset-bottom));
+  overscroll-behavior:contain;
 }
 .profile-page-section{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:16px;animation:cardEntrance .4s ease both}
 .profile-page-title{font-family:'Outfit',sans-serif;font-weight:700;font-size:15px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
